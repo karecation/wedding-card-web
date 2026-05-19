@@ -1,0 +1,281 @@
+@import "tailwindcss";
+
+:root {
+  --ivory: #fbf7ef;
+  --champagne: #e7d3ad;
+  --beige: #d8c7aa;
+  --charcoal: #2d2926;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--ivory);
+  color: var(--charcoal);
+  font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.create-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.create-header {
+  height: 50px;
+  flex: 0 0 auto;
+  border-bottom: 1px solid #e8e8e8;
+  background: #fff;
+}
+
+.create-toolbar {
+  height: 42px;
+  flex: 0 0 auto;
+  border-bottom: 1px solid #e5e5e5;
+  background: #fff;
+}
+
+.create-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 404px minmax(0, 1fr);
+  gap: 20px;
+  overflow: hidden;
+}
+
+.preview-panel,
+.editor-panel {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+.preview-panel {
+  border: 1px solid #e4e4e4;
+  border-radius: 6px;
+  background: #eee;
+  padding: 10px;
+}
+
+.preview-panel > * {
+  max-width: 390px;
+  margin-inline: auto;
+}
+
+@media (max-width: 900px) {
+  .create-page {
+    position: static;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .create-main {
+    display: block;
+    overflow: visible;
+  }
+
+  .preview-panel {
+    display: none;
+  }
+
+  .editor-panel {
+    overflow: visible;
+  }
+}
+
+.invitation-renderer[data-font="gowun-dodum"] {
+  font-family: "Gowun Dodum", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+.invitation-renderer[data-font="gowun-batang"] {
+  font-family: "Gowun Batang", "Noto Serif KR", "Nanum Myeongjo", serif;
+}
+
+.invitation-renderer[data-font="noto-serif"] {
+  font-family: "Noto Serif KR", "Nanum Myeongjo", serif;
+}
+
+.invitation-renderer[data-font="pretendard"] {
+  font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+.invitation-renderer[data-font="nanum-myeongjo"] {
+  font-family: "Nanum Myeongjo", "Noto Serif KR", serif;
+}
+
+@keyframes floatDown {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) rotate(0deg);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(22px, 520px, 0) rotate(220deg);
+  }
+}
+
+.intro-media-frame {
+  isolation: isolate;
+}
+
+.visual-effect-layer,
+.particle-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.visual-wave {
+  opacity: 0.74;
+  animation: waveDrift 7s ease-in-out infinite alternate;
+}
+
+.visual-fog span {
+  position: absolute;
+  inset: 8% -35%;
+  display: block;
+  background:
+    radial-gradient(circle at 30% 52%, rgba(255, 255, 255, 0.42), transparent 34%),
+    radial-gradient(circle at 66% 40%, rgba(255, 247, 238, 0.32), transparent 38%),
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  filter: blur(12px);
+  opacity: 0.55;
+  animation: fogDrift 9s ease-in-out infinite alternate;
+}
+
+.visual-fog span + span {
+  animation-delay: -4s;
+  animation-duration: 12s;
+  opacity: 0.35;
+}
+
+.particle-layer {
+  z-index: 3;
+}
+
+.particle {
+  position: absolute;
+  top: -14%;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  line-height: 1;
+  transform-origin: center;
+  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.55);
+}
+
+.particle-fall {
+  animation: fallDrift linear infinite;
+}
+
+.particle-heart {
+  animation: heartFloat ease-in-out infinite;
+}
+
+.particle-snow {
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+  animation: fallDrift linear infinite;
+}
+
+@keyframes waveDrift {
+  from {
+    transform: translate3d(-3%, 3%, 0) scale(1.04);
+  }
+  to {
+    transform: translate3d(3%, -2%, 0) scale(1.08);
+  }
+}
+
+@keyframes fogDrift {
+  from {
+    transform: translate3d(-12%, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(12%, 2%, 0) scale(1.04);
+  }
+}
+
+@keyframes fallDrift {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -10%, 0) rotate(0deg) scale(0.72);
+  }
+  12% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--drift), 1280%, 0) rotate(260deg) scale(1.05);
+  }
+}
+
+@keyframes heartFloat {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 900%, 0) scale(0.7);
+  }
+  20% {
+    opacity: 0.62;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--drift), -220%, 0) scale(1.08);
+  }
+}
+
+.invite-reveal {
+  animation: inviteReveal 560ms ease both;
+}
+
+@keyframes inviteReveal {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .invite-reveal,
+  .visual-effect-layer,
+  .particle,
+  .invitation-renderer * {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
