@@ -81,26 +81,46 @@ function fromDbPayload(row: Record<string, unknown>): SavedInvitation {
 async function syncRelatedTables(invitation: SavedInvitation) {
   const supabase = createSupabaseAdminClient();
 
-  await supabase.from("invitation_images").delete().eq("invitation_id", invitation.id);
-  const imageRows = [
-    invitation.coverImage && { invitation_id: invitation.id, type: "main", url: invitation.coverImage, sort_order: 0 },
-    invitation.introImage && { invitation_id: invitation.id, type: "intro", url: invitation.introImage, sort_order: 1 },
-    invitation.quoteImage && { invitation_id: invitation.id, type: "quote", url: invitation.quoteImage, sort_order: 2 },
-    invitation.kakaoThumbnailUrl && { invitation_id: invitation.id, type: "kakao_thumbnail", url: invitation.kakaoThumbnailUrl, sort_order: 3 },
-    invitation.urlThumbnailUrl && { invitation_id: invitation.id, type: "url_thumbnail", url: invitation.urlThumbnailUrl, sort_order: 4 },
-    ...invitation.galleryItems.map((image, index) => ({
+  const { error: imgDeleteErr } = await supabase.from("invitation_images").delete().eq("invitation_id", invitation.id);
+  if (imgDeleteErr) console.error("[syncRelatedTables] invitation_images delete failed", { message: imgDeleteErr.message });
+
+  const galleryRows = (invitation.galleryItems ?? [])
+    .map((image, index) => ({
       invitation_id: invitation.id,
       type: "gallery",
       url: image.url || image.previewUrl,
       sort_order: index,
       caption: image.caption ?? "",
-    })).filter((image) => image.url),
-  ].filter(Boolean);
-  if (imageRows.length > 0) await supabase.from("invitation_images").insert(imageRows);
+    }))
+    .filter((row) => row.url && row.url.startsWith("https://"));
 
-  await supabase.from("invitation_audio").delete().eq("invitation_id", invitation.id);
+  const imageRows = [
+    invitation.coverImage?.startsWith("https://") && { invitation_id: invitation.id, type: "main", url: invitation.coverImage, sort_order: 0 },
+    invitation.introImage?.startsWith("https://") && { invitation_id: invitation.id, type: "intro", url: invitation.introImage, sort_order: 1 },
+    invitation.quoteImage?.startsWith("https://") && { invitation_id: invitation.id, type: "quote", url: invitation.quoteImage, sort_order: 2 },
+    invitation.kakaoThumbnailUrl?.startsWith("https://") && { invitation_id: invitation.id, type: "kakao_thumbnail", url: invitation.kakaoThumbnailUrl, sort_order: 3 },
+    invitation.urlThumbnailUrl?.startsWith("https://") && { invitation_id: invitation.id, type: "url_thumbnail", url: invitation.urlThumbnailUrl, sort_order: 4 },
+    ...galleryRows,
+  ].filter(Boolean);
+
+  if (imageRows.length > 0) {
+    const { error: imgInsertErr } = await supabase.from("invitation_images").insert(imageRows);
+    if (imgInsertErr) {
+      console.error("[syncRelatedTables] invitation_images insert failed", {
+        message: imgInsertErr.message,
+        totalRows: imageRows.length,
+        galleryRows: galleryRows.length,
+      });
+    } else {
+      console.log("[syncRelatedTables] invitation_images inserted", { totalRows: imageRows.length, galleryRows: galleryRows.length });
+    }
+  }
+
+  const { error: audioDeleteErr } = await supabase.from("invitation_audio").delete().eq("invitation_id", invitation.id);
+  if (audioDeleteErr) console.error("[syncRelatedTables] invitation_audio delete failed", { message: audioDeleteErr.message });
+
   if (invitation.audioUrl || invitation.youtubeUrl) {
-    await supabase.from("invitation_audio").insert({
+    const { error: audioInsertErr } = await supabase.from("invitation_audio").insert({
       invitation_id: invitation.id,
       type: invitation.audioUrl ? "background" : "youtube",
       url: invitation.audioUrl || null,
@@ -108,11 +128,14 @@ async function syncRelatedTables(invitation: SavedInvitation) {
       title: invitation.audioTitle || null,
       autoplay: invitation.audioAutoplay,
     });
+    if (audioInsertErr) console.error("[syncRelatedTables] invitation_audio insert failed", { message: audioInsertErr.message });
   }
 
-  await supabase.from("bank_accounts").delete().eq("invitation_id", invitation.id);
+  const { error: bankDeleteErr } = await supabase.from("bank_accounts").delete().eq("invitation_id", invitation.id);
+  if (bankDeleteErr) console.error("[syncRelatedTables] bank_accounts delete failed", { message: bankDeleteErr.message });
+
   if (invitation.bankAccounts.length > 0) {
-    await supabase.from("bank_accounts").insert(
+    const { error: bankInsertErr } = await supabase.from("bank_accounts").insert(
       invitation.bankAccounts.map((account, index) => ({
         invitation_id: invitation.id,
         side: account.side,
@@ -125,12 +148,15 @@ async function syncRelatedTables(invitation: SavedInvitation) {
         sort_order: index,
       })),
     );
+    if (bankInsertErr) console.error("[syncRelatedTables] bank_accounts insert failed", { message: bankInsertErr.message });
   }
 
-  await supabase.from("contacts").delete().eq("invitation_id", invitation.id);
+  const { error: contactDeleteErr } = await supabase.from("contacts").delete().eq("invitation_id", invitation.id);
+  if (contactDeleteErr) console.error("[syncRelatedTables] contacts delete failed", { message: contactDeleteErr.message });
+
   const contacts = invitation.contacts.filter((contact) => contact.phone || contact.name);
   if (contacts.length > 0) {
-    await supabase.from("contacts").insert(
+    const { error: contactInsertErr } = await supabase.from("contacts").insert(
       contacts.map((contact, index) => ({
         invitation_id: invitation.id,
         role: contact.role,
@@ -139,6 +165,7 @@ async function syncRelatedTables(invitation: SavedInvitation) {
         sort_order: index,
       })),
     );
+    if (contactInsertErr) console.error("[syncRelatedTables] contacts insert failed", { message: contactInsertErr.message });
   }
 }
 
@@ -235,4 +262,27 @@ export async function addGuestbookAction(invitationId: string, form: Record<stri
   const { error } = await supabase.from("guestbook").insert({ invitation_id: invitationId, ...form });
   if (error) throw new Error(error.message || "방명록 저장에 실패했습니다.");
   return { ok: true, source: "supabase" as const };
+}
+
+export type InvitationImageRow = {
+  id: string;
+  type: string;
+  url: string;
+  sort_order: number;
+  caption: string;
+};
+
+export async function getInvitationImagesAction(invitationId: string): Promise<InvitationImageRow[]> {
+  if (!hasSupabaseServerConfig() || !invitationId) return [];
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("invitation_images")
+    .select("id, type, url, sort_order, caption")
+    .eq("invitation_id", invitationId)
+    .order("sort_order", { ascending: true });
+  if (error) {
+    console.warn("[getInvitationImagesAction] failed", { message: error.message });
+    return [];
+  }
+  return (data ?? []) as InvitationImageRow[];
 }

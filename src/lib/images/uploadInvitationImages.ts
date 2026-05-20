@@ -19,11 +19,18 @@ export async function uploadInvitationImages(
 ): Promise<{ invitation: SavedInvitation; failedCount: number }> {
   const { onProgress } = options;
 
-  if (pendingUploads.length === 0) {
+  // 갤러리: pendingUploads에 없는 File 객체를 미리 수집
+  const handledGalleryIds = new Set(pendingUploads.filter((u) => u.type === "gallery").map((u) => u.id));
+  const gallerySource = invitation.gallery?.images?.length ? invitation.gallery.images : invitation.galleryItems;
+  const extraGalleryItems = (gallerySource ?? []).filter(
+    (img) => img.file && !handledGalleryIds.has(img.id) && !img.url?.startsWith("https://"),
+  );
+
+  if (pendingUploads.length === 0 && extraGalleryItems.length === 0) {
     return { invitation, failedCount: 0 };
   }
 
-  const total = pendingUploads.length;
+  const total = pendingUploads.length + extraGalleryItems.length;
   let completed = 0;
   let failed = 0;
 
@@ -50,7 +57,6 @@ export async function uploadInvitationImages(
 
     if (result.status === "rejected") {
       failed++;
-      // 업로드 실패 시 publicUrl 없음 — sanitize 단계에서 base64는 제거됨
       return;
     }
 
@@ -85,6 +91,43 @@ export async function uploadInvitationImages(
       };
     }
   });
+
+  // 갤러리: pendingUploads에 없는 File 객체 업로드
+  if (extraGalleryItems.length > 0) {
+    const extraResults = await Promise.allSettled(
+      extraGalleryItems.map(async (img) => {
+        const formData = new FormData();
+        formData.append("file", img.file!);
+        formData.append("id", img.id);
+        formData.append("type", "gallery");
+        formData.append("invitationId", invitation.id);
+        const result = await uploadInvitationFileAction(formData);
+        completed++;
+        onProgress?.({ total, completed, failed });
+        return { publicUrl: result.publicUrl, imageId: img.id };
+      }),
+    );
+
+    const currentItems = [...(updatedInvitation.galleryItems ?? [])];
+    extraResults.forEach((result) => {
+      if (result.status === "rejected") { failed++; return; }
+      const { publicUrl, imageId } = result.value;
+      if (!publicUrl) return;
+      const idx = currentItems.findIndex((item) => item.id === imageId);
+      if (idx >= 0) {
+        currentItems[idx] = { ...currentItems[idx], url: publicUrl, previewUrl: publicUrl, dataUrl: undefined, uploadStatus: "uploaded" as const };
+      }
+    });
+
+    const finalItems = currentItems.map((item, order) => ({ ...item, order }));
+    updatedInvitation.galleryItems = finalItems;
+    updatedInvitation.galleryImages = finalItems.map((item) => item.url || "").filter(Boolean);
+    updatedInvitation.gallery = {
+      ...(updatedInvitation.gallery ?? invitation.gallery),
+      enabled: finalItems.length > 0,
+      images: finalItems,
+    };
+  }
 
   return { invitation: updatedInvitation, failedCount: failed };
 }

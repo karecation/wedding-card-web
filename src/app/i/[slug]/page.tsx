@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 // NOTE: this file uses InvitationRenderer as the single public renderer
-import { addGuestbookAction, getInvitationBySlugAction, submitRsvpAction } from "@/app/actions/invitationActions";
+import { addGuestbookAction, getInvitationBySlugAction, getInvitationImagesAction, submitRsvpAction } from "@/app/actions/invitationActions";
 import InvitationRenderer from "@/components/invitation/InvitationRenderer";
 import type { GuestbookEntry } from "@/components/invitation/GuestbookSection";
-import { emptyInvitationData, type SavedInvitation } from "@/types/invitation";
+import { emptyInvitationData, type GalleryImage, type SavedInvitation } from "@/types/invitation";
 
 const collectionKey = "mobile-wedding-invitations";
 
@@ -34,7 +34,36 @@ export default function SharedInvitationPage() {
   useEffect(() => {
     const load = async () => {
       const fromSupabase = await getInvitationBySlugAction(slug);
-      const loaded = fromSupabase ?? readLocalInvitation(slug);
+      let loaded: SavedInvitation | null = fromSupabase ?? readLocalInvitation(slug);
+
+      if (loaded) {
+        const images = await getInvitationImagesAction(loaded.id);
+        const galleryRows = images.filter((img) => img.type === "gallery" && img.url?.startsWith("https://"));
+
+        if (galleryRows.length > 0) {
+          const galleryImages: GalleryImage[] = galleryRows.map((img, index) => ({
+            id: img.id,
+            url: img.url,
+            previewUrl: img.url,
+            caption: img.caption ?? "",
+            order: img.sort_order ?? index,
+            type: "gallery" as const,
+            uploadStatus: "uploaded" as const,
+          }));
+          const currentGallery = loaded.gallery ?? emptyInvitationData.gallery;
+          loaded = {
+            ...loaded,
+            galleryItems: galleryImages,
+            galleryImages: galleryImages.map((img) => img.url ?? "").filter(Boolean),
+            gallery: {
+              ...currentGallery,
+              images: galleryImages,
+              enabled: currentGallery.enabled || galleryImages.length > 0,
+            },
+          };
+        }
+      }
+
       setInvitation(loaded);
 
       const rawGuestbook = window.localStorage.getItem(`guestbook-${slug}`);
