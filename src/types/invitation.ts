@@ -40,8 +40,10 @@ export type GalleryImage = {
   file?: File;
   url?: string;
   previewUrl: string;
+  dataUrl?: string;
   caption?: string;
   order: number;
+  uploadStatus?: "local" | "uploading" | "uploaded" | "failed";
   type?: ImageUploadType;
 };
 

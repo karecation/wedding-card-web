@@ -10,8 +10,8 @@ export default function GallerySection({
   mode: "preview" | "public";
 }) {
   const images = (invitation.gallery.images ?? []).filter((image, index, source) => {
-    const key = image.id || image.previewUrl || image.url || String(index);
-    return source.findIndex((item, itemIndex) => (item.id || item.previewUrl || item.url || String(itemIndex)) === key) === index;
+    const key = image.id || image.url || image.dataUrl || image.previewUrl || String(index);
+    return source.findIndex((item, itemIndex) => (item.id || item.url || item.dataUrl || item.previewUrl || String(itemIndex)) === key) === index;
   });
   if (!invitation.gallery.enabled) return null;
   if (images.length === 0 && mode === "public") return null;
@@ -31,7 +31,7 @@ export default function GallerySection({
 
   const galleryType = invitation.gallery.type || "grid";
   const renderImage = (image: (typeof images)[number], index: number, className = "") => {
-    const src = image.previewUrl || image.url;
+    const src = image.url || image.dataUrl || image.previewUrl;
     if (!src) return null;
 
     return (

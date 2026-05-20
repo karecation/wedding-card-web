@@ -76,6 +76,7 @@ export type NormalizedInvitation = {
       id: string;
       url?: string;
       previewUrl?: string;
+      dataUrl?: string;
       caption?: string;
       order: number;
     }>;
@@ -276,18 +277,19 @@ function normalizeGallery(items: GalleryImage[], images: string[]) {
   const fromItems = items.map((item, index) => ({
     id: item.id || `gallery-${index}`,
     url: item.url,
-    previewUrl: item.previewUrl || item.url,
+    previewUrl: item.previewUrl || item.dataUrl || item.url,
+    dataUrl: item.dataUrl,
     caption: item.caption,
     order: item.order ?? index,
   }));
   const fromUrls = images
-    .filter((url) => !fromItems.some((item) => item.url === url || item.previewUrl === url))
-    .map((url, index) => ({ id: `gallery-url-${index}`, url, previewUrl: url, order: fromItems.length + index }));
+    .filter((url) => !fromItems.some((item) => item.url === url || item.dataUrl === url || item.previewUrl === url))
+    .map((url, index) => ({ id: `gallery-url-${index}`, url, previewUrl: url, dataUrl: undefined, order: fromItems.length + index }));
   const seen = new Set<string>();
   return [...fromItems, ...fromUrls]
-    .filter((item) => item.previewUrl || item.url)
+    .filter((item) => item.url || item.dataUrl || item.previewUrl)
     .filter((item) => {
-      const key = item.id || item.previewUrl || item.url || "";
+      const key = item.id || item.url || item.dataUrl || item.previewUrl || "";
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -386,8 +388,8 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
       fontWeight: normalizeWeight(asString(merged.fontWeight) || asString(theme.fontWeight)),
       introLayout: normalizeIntroLayout(asString(merged.introTemplate)),
       frameStyle: normalizeFrame(asString(merged.introShape) || asString(theme.introShape)),
-      visualEffect: normalizeEffect(asString(merged.photoEffect)),
-      particleEffect: normalizeParticle(asString(merged.particle)),
+      visualEffect: "none",
+      particleEffect: "none",
       preventZoom: asBoolean(merged.preventZoom, true),
       revealOnScroll: asBoolean(merged.scrollEffect, true),
     },

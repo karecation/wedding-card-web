@@ -5,6 +5,7 @@ export type PendingUpload = {
   type: ImageUploadType | "audio";
   file: File;
   previewUrl: string;
+  dataUrl?: string;
 };
 
 export type UploadResult = {

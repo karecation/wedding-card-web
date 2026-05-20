@@ -6,16 +6,6 @@ import type { NormalizedInvitation } from "@/lib/invitation/normalizeInvitation"
 const weekdaysEn = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 const weekdaysKo = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
 
-const particles = Array.from({ length: 16 }, (_, index) => ({
-  id: index,
-  left: `${6 + ((index * 13) % 86)}%`,
-  delay: `${(index % 8) * 0.42}s`,
-  duration: `${6.8 + (index % 5) * 0.65}s`,
-  size: `${8 + (index % 5) * 2}px`,
-  drift: `${index % 2 === 0 ? "" : "-"}${18 + (index % 6) * 7}px`,
-  opacity: 0.34 + (index % 4) * 0.08,
-}));
-
 function getDate(date: string) {
   const parsed = date ? new Date(`${date}T00:00:00`) : new Date("2026-05-19T00:00:00");
   return Number.isNaN(parsed.getTime()) ? new Date("2026-05-19T00:00:00") : parsed;
@@ -27,68 +17,6 @@ function frameClass(style: NormalizedInvitation["design"]["frameStyle"]) {
   if (style === "frame") return "rounded-[6px] border-[10px] border-white shadow-[0_8px_24px_rgba(70,50,40,0.12)]";
   if (style === "fill") return "rounded-none";
   return "rounded-[4px]";
-}
-
-function VisualEffect({ effect }: { effect: NormalizedInvitation["design"]["visualEffect"] }) {
-  if (effect === "wave") {
-    return (
-      <div className="visual-effect-layer visual-wave">
-        <svg viewBox="0 0 420 180" preserveAspectRatio="none" className="h-full w-full">
-          <path d="M-20 104 Q45 64 110 104 T240 104 T370 104 T500 104 V190 H-20Z" fill="rgba(255,255,255,.28)" />
-          <path d="M-20 124 Q55 86 130 124 T280 124 T430 124 V190 H-20Z" fill="rgba(255,246,238,.22)" />
-        </svg>
-      </div>
-    );
-  }
-
-  if (effect === "fog") {
-    return (
-      <div className="visual-effect-layer visual-fog">
-        <span />
-        <span />
-      </div>
-    );
-  }
-
-  return null;
-}
-
-function particleMeta(type: NormalizedInvitation["design"]["particleEffect"]) {
-  if (type === "heart") return { glyph: "♥", className: "particle-heart", color: "#e8a3ae" };
-  if (type === "snow") return { glyph: "", className: "particle-snow", color: "#ffffff" };
-  if (type === "sakura") return { glyph: "✿", className: "particle-fall", color: "#efb3bd" };
-  if (type === "ginkgo") return { glyph: "◖", className: "particle-fall", color: "#e8cf72" };
-  return { glyph: "✿", className: "particle-fall", color: "#efb3bd" };
-}
-
-function ParticleEffect({ type }: { type: NormalizedInvitation["design"]["particleEffect"] }) {
-  if (type === "none") return null;
-  const meta = particleMeta(type);
-
-  return (
-    <div className="particle-layer" aria-hidden="true">
-      {particles.map((particle) => (
-        <span
-          key={particle.id}
-          className={`particle ${meta.className}`}
-          style={
-            {
-              left: particle.left,
-              width: particle.size,
-              height: particle.size,
-              color: meta.color,
-              opacity: particle.opacity,
-              animationDelay: particle.delay,
-              animationDuration: particle.duration,
-              "--drift": particle.drift,
-            } as CSSProperties
-          }
-        >
-          {meta.glyph}
-        </span>
-      ))}
-    </div>
-  );
 }
 
 function IntroMedia({ invitation, src }: { invitation: NormalizedInvitation; src: string }) {
@@ -105,9 +33,7 @@ function IntroMedia({ invitation, src }: { invitation: NormalizedInvitation; src
             <path d="M8 8 40 40" stroke="currentColor" strokeWidth="2" />
           </svg>
         </div>
-      )}
-      <VisualEffect effect={invitation.design.visualEffect} />
-      <ParticleEffect type={invitation.design.particleEffect} />
+      )}
     </div>
   );
 }
@@ -169,9 +95,7 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
       <section className="text-center">
         <div className={`intro-media-frame relative aspect-[3/4] w-full overflow-hidden ${frameClass(invitation.design.frameStyle)}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt="대표 사진" className="h-full w-full object-cover" />
-          <VisualEffect effect={invitation.design.visualEffect} />
-          <ParticleEffect type={invitation.design.particleEffect} />
+          <img src={src} alt="대표 사진" className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.1)_45%,rgba(0,0,0,.5))]" />
           <div className="absolute inset-x-0 bottom-10 px-8 text-white">
             <p className="text-[10px] uppercase tracking-[0.34em] text-white/75">{invitation.intro.subText}</p>

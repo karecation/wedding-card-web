@@ -133,7 +133,8 @@ function renderSection(id: MenuSectionId, props: Props, normalized: NormalizedIn
 export default function InvitationRenderer(props: Props) {
   const invitation = normalizeInvitation(props.invitation);
   const tokens = themeTokens[invitation.design.themeColor];
-  const weight = invitation.design.fontWeight === "light" ? 300 : invitation.design.fontWeight === "medium" ? 500 : 400;
+  const weight = invitation.design.fontWeight === "light" ? 300 : invitation.design.fontWeight === "medium" ? 600 : 400;
+  const fontScale = invitation.design.fontWeight === "light" ? 0.97 : invitation.design.fontWeight === "medium" ? 1.06 : 1;
 
   const style = {
     "--invite-bg": tokens.bg,
@@ -144,6 +145,7 @@ export default function InvitationRenderer(props: Props) {
     "--invite-accent": invitation.design.accentColor || "#c9897a",
     "--invite-accent-soft": tokens.accentSoft,
     fontWeight: weight,
+    fontSize: `${fontScale * 100}%`,
   } as React.CSSProperties;
 
   const visibleSections = invitation.menuOrder

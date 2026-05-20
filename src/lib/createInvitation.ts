@@ -26,7 +26,11 @@ function readInvitations(): SavedInvitation[] {
 
 function writeInvitations(invitations: SavedInvitation[]) {
   assertBrowserStorage();
-  window.localStorage.setItem(invitationCollectionKey, JSON.stringify(invitations));
+  try {
+    window.localStorage.setItem(invitationCollectionKey, JSON.stringify(invitations));
+  } catch (error) {
+    console.warn("[createInvitation] writeInvitations localStorage 저장 실패:", error instanceof Error ? error.message : error);
+  }
 }
 
 export async function createInvitation(data: InvitationData): Promise<CreateInvitationResult> {

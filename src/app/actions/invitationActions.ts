@@ -1,5 +1,6 @@
 "use server";
 
+import { getSafeStoragePath } from "@/lib/images/safeStoragePath";
 import { createSupabaseAdminClient, hasSupabaseServerConfig } from "@/lib/supabase/server";
 import type { UploadResult } from "@/lib/upload";
 import type { InvitationData, SavedInvitation } from "@/types/invitation";
@@ -166,29 +167,26 @@ export async function saveInvitationAction(invitation: SavedInvitation) {
 export async function uploadInvitationFileAction(formData: FormData): Promise<UploadResult> {
   const file = formData.get("file");
   const id = String(formData.get("id") ?? "");
-  const slug = String(formData.get("slug") ?? "");
+  const invitationId = String(formData.get("invitationId") ?? "");
   const type = String(formData.get("type") ?? "") as UploadResult["type"];
 
   if (!(file instanceof File)) {
     throw new Error("업로드할 파일이 없습니다.");
   }
 
-  if (!id || !slug || !type) {
+  if (!id || !invitationId || !type) {
     throw new Error("업로드 정보가 올바르지 않습니다.");
   }
 
   if (!hasSupabaseServerConfig()) {
-    return {
-      id,
-      type,
-      publicUrl: "",
-    };
+    return { id, type, publicUrl: "" };
   }
 
   const supabase = createSupabaseAdminClient();
   const bucket = type === "audio" ? "invitation-audio" : "invitation-images";
-  const extension = file.name.split(".").pop()?.toLowerCase() || (type === "audio" ? "mp3" : "jpg");
-  const path = `${slug}/${type}/${id}.${extension}`;
+
+  // 원본 파일명/slug 대신 UUID 기반 safe path 사용 (한글·공백·특수문자 방지)
+  const path = getSafeStoragePath({ invitationId, type, imageId: id, mimeType: file.type });
 
   const { error } = await supabase.storage.from(bucket).upload(path, file, {
     cacheControl: "31536000",
@@ -197,16 +195,20 @@ export async function uploadInvitationFileAction(formData: FormData): Promise<Up
   });
 
   if (error) {
-    throw new Error(error.message || "파일 업로드에 실패했습니다.");
+    console.error("[uploadInvitationFileAction] 업로드 실패", {
+      bucket,
+      path,
+      originalFileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      errorMessage: error.message,
+    });
+    throw new Error("이미지 업로드에 실패했습니다. 다시 시도해주세요.");
   }
 
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
 
-  return {
-    id,
-    type,
-    publicUrl: data.publicUrl,
-  };
+  return { id, type, publicUrl: data.publicUrl };
 }
 
 export async function getInvitationBySlugAction(slug: string) {

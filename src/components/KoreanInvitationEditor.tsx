@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { extractYouTubeVideoId } from "@/lib/youtube";
+import { resizeImageToDataUrl } from "@/lib/images/resizeImage";
 import { validateUploadFile, type PendingUpload } from "@/lib/upload";
 import type {
   BankAccountItem,
@@ -163,18 +164,36 @@ function UploadBox({
   label?: string;
   onSelect: (type: ImageUploadType | "audio", files: FileList) => void;
 }) {
+  const [isDragging, setIsDragging] = useState(false);
+  const isGallery = type === "gallery";
+
   return (
-    <label className="grid h-[146px] w-[146px] cursor-pointer place-items-center overflow-hidden rounded-[4px] border border-[#dedede] bg-[#f7f7f7] text-center text-[12px] text-[#f06f52] transition hover:border-[#c9c9c9]">
+    <label
+      className={`grid min-h-[146px] w-full max-w-[320px] cursor-pointer place-items-center overflow-hidden rounded-[6px] border border-dashed bg-[#f8f8f8] px-4 py-4 text-center text-[12px] transition ${isDragging ? "border-[#222] bg-white" : "border-[#dedede] text-[#f06f52] hover:border-[#c9c9c9]"}`}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setIsDragging(true);
+      }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setIsDragging(false);
+        if (event.dataTransfer.files?.length) onSelect(type, event.dataTransfer.files);
+      }}
+    >
       {imageUrl && type !== "audio" ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+        <img src={imageUrl} alt="" className="h-full max-h-[180px] w-full rounded-[4px] object-cover" />
       ) : (
-        <span>{label}</span>
+        <span className="space-y-1 leading-5">
+          <span className="block font-semibold text-[#f06f52]">{isGallery ? "사진을 클릭하거나 여기로 끌어다 놓으세요" : label}</span>
+          {isGallery && <span className="block text-[11px] text-[#999]">여러 장을 한 번에 추가할 수 있습니다.</span>}
+        </span>
       )}
       <input
         type="file"
         accept={type === "audio" ? "audio/mpeg,.mp3" : "image/*"}
-        multiple={type === "gallery"}
+        multiple={isGallery}
         className="sr-only"
         onChange={(event) => {
           if (event.target.files) onSelect(type, event.target.files);
@@ -189,13 +208,10 @@ function Help({ children }: { children: React.ReactNode }) {
   return <p className="text-[12px] leading-6 text-[#999]">{children}</p>;
 }
 
-function readFileDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
+async function makeImagePreviews(file: File) {
+  const previewUrl = URL.createObjectURL(file);
+  const dataUrl = await resizeImageToDataUrl(file);
+  return { previewUrl, dataUrl };
 }
 
 function createClientId(prefix: string) {
@@ -269,7 +285,7 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         images: orderedImages,
       },
       galleryItems: orderedImages,
-      galleryImages: orderedImages.map((image) => image.previewUrl || image.url || "").filter(Boolean),
+      galleryImages: orderedImages.map((image) => image.url || image.dataUrl || image.previewUrl || "").filter(Boolean),
       menuOrder:
         extra?.menuOrder ??
         data.menuOrder.map((menu) => (menu.id === "gallery" ? { ...menu, enabled: nextEnabled } : menu)),
@@ -293,8 +309,9 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
       }
 
       const id = createClientId(type);
-      const previewUrl = type === "audio" ? URL.createObjectURL(file) : await readFileDataUrl(file);
-      onPendingUpload?.({ id, type, file, previewUrl });
+      const preview = type === "audio" ? { previewUrl: URL.createObjectURL(file), dataUrl: "" } : await makeImagePreviews(file);
+      const { previewUrl, dataUrl } = preview;
+      onPendingUpload?.({ id, type, file, previewUrl, dataUrl });
 
       if (type === "main") update("coverImage", previewUrl);
       if (type === "intro") update("introImage", previewUrl);
@@ -306,8 +323,9 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         nextGalleryItems.push({
           id,
           file,
-          url: previewUrl,
+          url: dataUrl || previewUrl,
           previewUrl,
+          dataUrl,
           caption: "",
           order: galleryImages.length + nextGalleryItems.length,
           type: "gallery",
@@ -462,18 +480,6 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
           </div>
         </Field>
         <Field label="대표 사진"><UploadBox imageUrl={data.coverImage} type="main" onSelect={selectFiles} /></Field>
-        <Field label="이펙트">
-          <div className="flex gap-2">
-            {["없음", "물결", "안개"].map((effect) => <Chip key={effect} active={data.photoEffect === effect} onClick={() => update("photoEffect", effect)}>{effect}</Chip>)}
-          </div>
-        </Field>
-        <Field label="파티클">
-          <div className="flex flex-wrap gap-2">
-            {["없음", "눈송이", "하트", "벚꽃", "은행잎"].map((particle) => (
-              <Chip key={particle} active={data.particle === particle} onClick={() => update("particle", particle)}>{particle}</Chip>
-            ))}
-          </div>
-        </Field>
         <Field label="문구">
           <div className="space-y-2">
             <Input value={data.introHeadline} onChange={(event) => update("introHeadline", event.target.value)} placeholder="We're getting married" />
@@ -562,7 +568,7 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         {galleryImages.length > 0 && (
           <div className="ml-[108px] grid grid-cols-3 gap-2 sm:grid-cols-5">
             {galleryImages.map((image, index) => {
-              const src = image.previewUrl || image.url || "";
+              const src = image.previewUrl || image.url || image.dataUrl || "";
               return (
                 <div key={image.id} className="group relative aspect-square overflow-hidden rounded border border-[#ddd] bg-[#f5f5f5]">
                   <button

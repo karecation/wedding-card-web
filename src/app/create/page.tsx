@@ -3,11 +3,13 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getInvitationBySlugAction, saveInvitationAction, uploadInvitationFileAction } from "@/app/actions/invitationActions";
+import { getInvitationBySlugAction, saveInvitationAction } from "@/app/actions/invitationActions";
 import KoreanInvitationEditor from "@/components/KoreanInvitationEditor";
 import KoreanInvitationPreview from "@/components/KoreanInvitationPreview";
 import { generateSlug } from "@/lib/generateSlug";
-import type { PendingUpload, UploadResult } from "@/lib/upload";
+import { uploadInvitationImages } from "@/lib/images/uploadInvitationImages";
+import { sanitizeInvitationForStorage } from "@/lib/invitation/sanitizeInvitationForStorage";
+import type { PendingUpload } from "@/lib/upload";
 import { emptyInvitationData, type InvitationData, type SavedInvitation } from "@/types/invitation";
 
 const storageKey = "mobile-wedding-invitation";
@@ -58,39 +60,138 @@ function createSavedInvitation(data: InvitationData): SavedInvitation {
   };
 }
 
-function saveLocalInvitation(invitation: SavedInvitation) {
-  const localInvitation = sanitizeInvitationForLocalStorage(invitation);
-  window.localStorage.setItem(storageKey, JSON.stringify(localInvitation));
-  const raw = window.localStorage.getItem(collectionKey);
-  const list = raw ? (JSON.parse(raw) as SavedInvitation[]) : [];
-  const next = [localInvitation, ...list.filter((item) => item.slug !== invitation.slug)];
-  window.localStorage.setItem(collectionKey, JSON.stringify(next));
-}
-
-function saveDraft(invitation: SavedInvitation) {
-  const draftId = createId("preview");
-  window.localStorage.setItem(`invitation-draft-${draftId}`, JSON.stringify(sanitizeInvitationForLocalStorage(invitation)));
-  return draftId;
-}
-
 function sanitizeInvitationForLocalStorage(invitation: SavedInvitation): SavedInvitation {
-  const galleryImages = (invitation.gallery?.images ?? invitation.galleryItems ?? []).map(({ file: _file, ...image }, index) => ({
-    ...image,
-    previewUrl: image.previewUrl || image.url || "",
-    url: image.url || image.previewUrl || "",
-    order: index,
-  }));
+  return sanitizeInvitationForStorage(invitation);
+}
 
+function isQuotaExceededError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === "QuotaExceededError" ||
+    error.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+    error.message.toLowerCase().includes("quota")
+  );
+}
+
+function getApproxStorageSizeKb(value: unknown): number {
+  try {
+    return Math.round(JSON.stringify(value).length / 1024);
+  } catch {
+    return -1;
+  }
+}
+
+// blob: / data: URL과 File 객체를 제거한 가벼운 InvitationData 반환 (editingState→localStorage 저장용)
+function stripHeavyImageFields(data: InvitationData): InvitationData {
+  const clean = (url: string) => (url.startsWith("blob:") || url.startsWith("data:")) ? "" : url;
+  const cleanGalleryItem = (img: import("@/types/invitation").GalleryImage) => ({
+    ...img,
+    file: undefined,
+    dataUrl: undefined,
+    previewUrl: img.previewUrl ? clean(img.previewUrl) : "",
+    url: img.url ? clean(img.url) : undefined,
+  });
   return {
-    ...invitation,
-    gallery: {
-      ...(invitation.gallery ?? emptyInvitationData.gallery),
-      images: galleryImages,
-      enabled: invitation.gallery?.enabled ?? galleryImages.length > 0,
-    },
-    galleryItems: galleryImages,
-    galleryImages: galleryImages.map((image) => image.previewUrl || image.url || "").filter(Boolean),
+    ...data,
+    coverImage: clean(data.coverImage),
+    introImage: clean(data.introImage),
+    quoteImage: clean(data.quoteImage),
+    kakaoThumbnailUrl: clean(data.kakaoThumbnailUrl),
+    urlThumbnailUrl: clean(data.urlThumbnailUrl),
+    galleryItems: data.galleryItems.map(cleanGalleryItem),
+    galleryImages: data.galleryImages.filter((u) => !u.startsWith("blob:") && !u.startsWith("data:")),
+    gallery: data.gallery
+      ? { ...data.gallery, images: data.gallery.images.map(cleanGalleryItem) }
+      : data.gallery,
   };
+}
+
+function cleanupOldInvitationDrafts({ maxDrafts = 3 }: { maxDrafts?: number } = {}) {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith("invitation-draft-")) keys.push(key);
+    }
+    if (keys.length <= maxDrafts) return;
+    keys.slice(0, keys.length - maxDrafts).forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // localStorage 접근 불가 시 무시
+  }
+}
+
+function saveLocalInvitation(invitation: SavedInvitation) {
+  try {
+    const localInvitation = sanitizeInvitationForLocalStorage(invitation);
+    window.localStorage.setItem(storageKey, JSON.stringify(localInvitation));
+
+    const raw = window.localStorage.getItem(collectionKey);
+    const rawList = raw ? (JSON.parse(raw) as SavedInvitation[]) : [];
+    // 신규 항목 + 기존 항목 전체 재sanitize → 이전에 저장된 base64도 제거
+    const sanitizedList = [
+      localInvitation,
+      ...rawList.filter((item) => item.slug !== invitation.slug).map(sanitizeInvitationForLocalStorage),
+    ];
+
+    console.log("[LocalStorage save start]", {
+      key: collectionKey,
+      approximateSizeKb: getApproxStorageSizeKb(sanitizedList),
+    });
+    window.localStorage.setItem(collectionKey, JSON.stringify(sanitizedList));
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      console.warn("[LocalStorage quota exceeded]", {
+        key: collectionKey,
+        approximateSizeKb: getApproxStorageSizeKb(invitation),
+      });
+      // 최소 메타정보만 재시도
+      try {
+        const minimal = { id: invitation.id, slug: invitation.slug, groomName: invitation.groomName, brideName: invitation.brideName, updatedAt: invitation.updatedAt };
+        const raw = window.localStorage.getItem(collectionKey);
+        const list = raw ? (JSON.parse(raw) as Array<{ slug: string }>) : [];
+        const next = [minimal, ...list.filter((item) => item.slug !== invitation.slug)];
+        window.localStorage.setItem(collectionKey, JSON.stringify(next));
+      } catch {
+        console.warn("[Local fallback skipped]", { reason: "quota exceeded even with minimal data" });
+      }
+    }
+  }
+}
+
+function saveDraft(invitation: SavedInvitation): string {
+  const draftId = createId("preview");
+
+  cleanupOldInvitationDrafts({ maxDrafts: 3 });
+
+  const lightweightDraft = sanitizeInvitationForLocalStorage(invitation);
+
+  try {
+    window.localStorage.setItem(`invitation-draft-${draftId}`, JSON.stringify(lightweightDraft));
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      // 용량 초과 시 이미지 필드 전부 제거 후 재시도
+      const textOnly: SavedInvitation = {
+        ...lightweightDraft,
+        coverImage: "",
+        introImage: "",
+        quoteImage: "",
+        kakaoThumbnailUrl: "",
+        urlThumbnailUrl: "",
+        galleryItems: [],
+        galleryImages: [],
+        gallery: { ...lightweightDraft.gallery, images: [], enabled: false },
+      };
+      try {
+        window.localStorage.setItem(`invitation-draft-${draftId}`, JSON.stringify(textOnly));
+      } catch {
+        console.warn("localStorage 용량 초과 — 미리보기 저장을 건너뜁니다.");
+      }
+    } else {
+      throw error;
+    }
+  }
+
+  return draftId;
 }
 
 function CreatePageContent() {
@@ -133,47 +234,17 @@ function CreatePageContent() {
   }, [editingSlug]);
 
   const handleChange = (nextInvitation: InvitationData) => {
-    setInvitation(nextInvitation);
-    window.localStorage.setItem(storageKey, JSON.stringify(nextInvitation));
+    setInvitation(nextInvitation); // React state는 blob/dataUrl 포함 (live preview용)
+    try {
+      // localStorage에는 base64/blob 제거 후 저장 (quota 방지)
+      window.localStorage.setItem(storageKey, JSON.stringify(stripHeavyImageFields(nextInvitation)));
+    } catch {
+      // quota 초과 시 UI는 영향 없음 (React state 유지됨)
+    }
   };
 
   const handlePendingUpload = (upload: PendingUpload) => {
     setPendingUploads((current) => [...current.filter((item) => item.id !== upload.id), upload]);
-  };
-
-  const applyUploadResults = (savedInvitation: SavedInvitation, results: UploadResult[]) => {
-    results.forEach((result: UploadResult, index) => {
-      const fallbackPreviewUrl = pendingUploads[index]?.previewUrl ?? "";
-      const uploadedUrl = result.publicUrl || fallbackPreviewUrl;
-      if (result.type === "main") savedInvitation.coverImage = uploadedUrl;
-      if (result.type === "intro") savedInvitation.introImage = uploadedUrl;
-      if (result.type === "quote") savedInvitation.quoteImage = uploadedUrl;
-      if (result.type === "kakao_thumbnail") savedInvitation.kakaoThumbnailUrl = uploadedUrl;
-      if (result.type === "url_thumbnail") savedInvitation.urlThumbnailUrl = uploadedUrl;
-      if (result.type === "audio") {
-        savedInvitation.audioUrl = uploadedUrl;
-        savedInvitation.musicUrl = uploadedUrl;
-      }
-      if (result.type === "gallery") {
-        const nextGalleryItems = savedInvitation.galleryItems.map((item, order) => (item.id === result.id ? { ...item, url: uploadedUrl, previewUrl: uploadedUrl, order } : { ...item, order }));
-        savedInvitation.galleryItems = nextGalleryItems;
-        savedInvitation.galleryImages = nextGalleryItems.map((item) => item.url || item.previewUrl || "").filter(Boolean);
-        savedInvitation.gallery = {
-          ...(savedInvitation.gallery ?? emptyInvitationData.gallery),
-          enabled: nextGalleryItems.length > 0,
-          images: nextGalleryItems,
-        };
-      }
-    });
-  };
-
-  const moveToDraftPreview = (savedInvitation: SavedInvitation) => {
-    saveLocalInvitation(savedInvitation);
-    setInvitation(savedInvitation);
-    setPendingUploads([]);
-    const draftId = saveDraft(savedInvitation);
-    setStatusMessage("저장되었습니다. 미리보기로 이동합니다.");
-    router.push(`/preview/${draftId}`);
   };
 
   const handleSave = async () => {
@@ -183,37 +254,66 @@ function CreatePageContent() {
 
     let savedInvitation = createSavedInvitation(invitation);
 
+    console.log("[Save start]", {
+      slug: savedInvitation.slug,
+      pendingUploads: pendingUploads.length,
+    });
+    console.log("[Supabase env]", {
+      hasUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+      hasAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+    });
+
     try {
       if (pendingUploads.length > 0) {
-        setStatusMessage("업로드 중입니다...");
-        const results = await Promise.all(
-          pendingUploads.map((upload) => {
-            const formData = new FormData();
-            formData.append("file", upload.file);
-            formData.append("id", upload.id);
-            formData.append("type", upload.type);
-            formData.append("slug", savedInvitation.slug);
-            return uploadInvitationFileAction(formData);
-          }),
+        setStatusMessage(`이미지 업로드 중 (0 / ${pendingUploads.length})`);
+
+        const { invitation: uploaded, failedCount } = await uploadInvitationImages(
+          savedInvitation,
+          pendingUploads,
+          {
+            onProgress: ({ completed, total }) => {
+              setStatusMessage(`이미지 업로드 중 (${completed} / ${total})`);
+            },
+          },
         );
-        applyUploadResults(savedInvitation, results);
+
+        savedInvitation = uploaded;
+
+        if (failedCount > 0) {
+          setStatusMessage(`이미지 ${failedCount}개 업로드 실패 — 나머지는 저장됩니다.`);
+        }
       }
 
+      setStatusMessage("청첩장 저장 중...");
       savedInvitation.updatedAt = new Date().toISOString();
       savedInvitation = sanitizeInvitationForLocalStorage(savedInvitation);
 
+      console.log("[DB save start]", { slug: savedInvitation.slug });
       try {
         const result = await saveInvitationAction(savedInvitation);
         savedInvitation = result.invitation;
-      } catch {
-        setStatusMessage("DB 저장 대신 로컬 미리보기로 저장합니다.");
+        console.log("[DB save success]", { slug: savedInvitation.slug, id: savedInvitation.id });
+      } catch (dbError) {
+        console.warn("[DB save failed]", { error: dbError instanceof Error ? dbError.message : dbError });
+        setStatusMessage("DB 저장 실패 — 로컬 미리보기로 저장합니다.");
       }
 
-      moveToDraftPreview(savedInvitation);
+      setStatusMessage("미리보기 생성 중...");
+      saveLocalInvitation(savedInvitation);
+      setInvitation(savedInvitation);
+      setPendingUploads([]);
+
+      const draftId = saveDraft(savedInvitation);
+      console.log("[Preview loaded]", {
+        source: "draft",
+        slug: savedInvitation.slug,
+        imageCount: savedInvitation.galleryItems.length,
+      });
+      setStatusMessage("저장되었습니다. 미리보기로 이동합니다.");
+      router.push(`/preview/${draftId}`);
     } catch (error) {
-      console.error(error);
-      setStatusMessage("업로드 저장에 실패해 로컬 미리보기로 저장합니다.");
-      moveToDraftPreview(savedInvitation);
+      console.error("[Save failed]", error);
+      setStatusMessage("저장에 실패했습니다. 다시 시도해 주세요.");
     } finally {
       setIsSaving(false);
     }
