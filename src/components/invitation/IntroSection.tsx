@@ -56,7 +56,7 @@ function DateBlock({ date }: { date: Date }) {
 export default function IntroSection({ invitation }: { invitation: NormalizedInvitation }) {
   const date = getDate(invitation.basic.weddingDate);
   const venue = [invitation.basic.venueName, invitation.basic.venueHall].filter(Boolean).join(" ");
-  const src = invitation.intro.mainImagePreviewUrl || invitation.intro.mainImageUrl || "";
+  const src = invitation.intro.mainImageUrl || invitation.intro.mainImagePreviewUrl || "";
   const names = `${invitation.basic.groomName}  |  ${invitation.basic.brideName}`;
 
   if (typeof window !== "undefined") {

@@ -18,7 +18,15 @@ export function mergeInvitationImages(
 ): SavedInvitation {
   const rows = (imageRows ?? []).filter((row) => row.url && row.url.startsWith("https://"));
 
-  if (rows.length === 0) return invitation;
+  if (rows.length === 0) {
+    console.log("[Preview image merge]", {
+      hasMainImage: Boolean(invitation.coverImage || invitation.introImage),
+      galleryCount: invitation.galleryItems?.length ?? 0,
+      hasPhotoQuote: Boolean(invitation.quoteImage),
+      hasShareThumbnail: Boolean(invitation.kakaoThumbnailUrl || invitation.urlThumbnailUrl),
+    });
+    return invitation;
+  }
 
   const mainRow = rows.find((row) => row.type === "main" || row.type === "intro");
   const galleryRows = rows
@@ -57,6 +65,13 @@ export function mergeInvitationImages(
       enabled: currentGallery.enabled || galleryImages.length > 0,
     };
   }
+
+  console.log("[Preview image merge]", {
+    hasMainImage: Boolean(merged.coverImage || merged.introImage),
+    galleryCount: merged.galleryItems?.length ?? 0,
+    hasPhotoQuote: Boolean(merged.quoteImage),
+    hasShareThumbnail: Boolean(merged.kakaoThumbnailUrl || merged.urlThumbnailUrl),
+  });
 
   return merged;
 }

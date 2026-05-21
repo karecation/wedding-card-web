@@ -394,7 +394,7 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
       revealOnScroll: asBoolean(merged.scrollEffect, true),
     },
     intro: {
-      mainImageUrl: asString(merged.coverImage) || asString(row.main_image_url),
+      mainImageUrl: asString(merged.coverImage) || asString(merged.introImage) || asString(row.main_image_url),
       mainImagePreviewUrl: asString(merged.coverImage) || asString(merged.introImage) || asString(row.main_image_url),
       headline: asString(merged.introHeadline, "We're getting married"),
       subText: asString(merged.introSubText, "Save The Date"),
@@ -420,7 +420,7 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
       transportations: normalizeTransport((merged.transports ?? []) as TransportItem[]),
     },
     gallery: {
-      enabled: asBoolean(rawGallery.enabled, menuEnabled(menu, "gallery", true)),
+      enabled: asBoolean(rawGallery.enabled, menuEnabled(menu, "gallery", true)) || galleryImages.length > 0,
       title: asString(rawGallery.title) || asString(merged.galleryTitle, "갤러리"),
       type: normalizeGalleryType(asString(rawGallery.type) || asString(merged.galleryType, "grid")),
       showArrows: asBoolean(rawGallery.showArrows, asBoolean(merged.showGalleryArrows, false)),

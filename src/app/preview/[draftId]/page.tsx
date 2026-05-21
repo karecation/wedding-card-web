@@ -21,16 +21,13 @@ type DraftEnvelope = {
   data?: SavedInvitation | null;
 };
 
-// 구버전 draft(SavedInvitation 자체)와 신버전 envelope을 모두 지원
 function parseDraft(raw: string): DraftEnvelope | null {
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object") {
-      // 신버전: envelope ({ draftId, slug, invitationId, data })
       if ("data" in parsed && ("slug" in parsed || "invitationId" in parsed)) {
         return parsed as DraftEnvelope;
       }
-      // 구버전: SavedInvitation 자체
       const old = parsed as SavedInvitation;
       return {
         slug: old.slug,
@@ -45,6 +42,33 @@ function parseDraft(raw: string): DraftEnvelope | null {
   }
 }
 
+async function loadFromSupabase(identifier: string): Promise<SavedInvitation | null> {
+  let fromDb = await getInvitationByIdAction(identifier);
+  let source: "id" | "slug" | null = fromDb ? "id" : null;
+
+  if (!fromDb) {
+    fromDb = await getInvitationBySlugAction(identifier);
+    source = fromDb ? "slug" : null;
+  }
+
+  console.log("[Preview supabase row]", {
+    found: Boolean(fromDb),
+    id: fromDb?.id,
+    slug: fromDb?.slug,
+    source,
+  });
+
+  if (!fromDb) return null;
+
+  const imageRows = await getInvitationImagesAction(fromDb.id);
+  console.log("[Preview image rows]", {
+    count: imageRows.length,
+    types: imageRows.map((row) => row.type),
+  });
+
+  return mergeInvitationImages(fromDb, imageRows);
+}
+
 export default function DraftPreviewPage() {
   const params = useParams<{ draftId: string }>();
   const [invitation, setInvitation] = useState<NormalizedInvitation | null>(null);
@@ -54,96 +78,47 @@ export default function DraftPreviewPage() {
     if (!params.draftId) return;
 
     const load = async () => {
-      console.log("[Preview load start]", { draftId: params.draftId });
+      const previewId = decodeURIComponent(params.draftId);
+      console.log("[Preview load start]", { draftId: previewId });
 
-      const raw = window.localStorage.getItem(`invitation-draft-${params.draftId}`);
-      const draft = raw ? parseDraft(raw) : null;
+      let merged = await loadFromSupabase(previewId);
 
-      console.log("[Preview draft from localStorage]", {
-        hasDraft: Boolean(draft),
-        slug: draft?.slug,
-        invitationId: draft?.invitationId,
-        hasInlineData: Boolean(draft?.data),
-        rawSizeKb: raw ? Math.round(raw.length / 1024) : 0,
-      });
+      if (!merged) {
+        const raw = window.localStorage.getItem(`invitation-draft-${previewId}`);
+        const draft = raw ? parseDraft(raw) : null;
+        console.log("[Preview fallback localStorage]", {
+          used: Boolean(draft),
+          slug: draft?.slug,
+          invitationId: draft?.invitationId,
+          hasInlineData: Boolean(draft?.data),
+          rawSizeKb: raw ? Math.round(raw.length / 1024) : 0,
+        });
 
-      // 1순위: Supabase 조회 (slug 또는 invitationId 기준)
-      let merged: SavedInvitation | null = null;
-      let supabaseSource: "id" | "slug" | null = null;
-
-      if (draft?.invitationId || draft?.slug) {
-        try {
-          let fromDb: SavedInvitation | null = null;
-          if (draft.invitationId) {
-            fromDb = await getInvitationByIdAction(draft.invitationId);
-            if (fromDb) supabaseSource = "id";
-          }
-          if (!fromDb && draft.slug) {
-            fromDb = await getInvitationBySlugAction(draft.slug);
-            if (fromDb) supabaseSource = "slug";
-          }
-
-          if (fromDb) {
-            console.log("[Preview Supabase invitation loaded]", {
-              id: fromDb.id,
-              slug: fromDb.slug,
-              via: supabaseSource,
-            });
-
-            const imageRows = await getInvitationImagesAction(fromDb.id);
-            const byType = imageRows.reduce<Record<string, number>>((acc, row) => {
-              acc[row.type] = (acc[row.type] ?? 0) + 1;
-              return acc;
-            }, {});
-            console.log("[Preview image rows loaded]", { count: imageRows.length, byType });
-
-            merged = mergeInvitationImages(fromDb, imageRows);
-
-            console.log("[Preview image merge]", {
-              hasMainImage: Boolean(merged.coverImage),
-              galleryCount: merged.galleryItems.length,
-              hasPhotoQuote: Boolean(merged.quoteImage),
-              hasShareThumbnail: Boolean(merged.kakaoThumbnailUrl || merged.urlThumbnailUrl),
-            });
-          }
-        } catch (error) {
-          console.error("[Preview Supabase fetch failed]", error);
+        if (draft?.invitationId && draft.invitationId !== previewId) {
+          merged = await loadFromSupabase(draft.invitationId);
+        }
+        if (!merged && draft?.slug && draft.slug !== previewId) {
+          merged = await loadFromSupabase(draft.slug);
+        }
+        if (!merged && draft?.data) {
+          merged = draft.data;
         }
       }
 
-      // 2순위: localStorage 데이터 fallback
-      if (!merged && draft?.data) {
-        console.log("[Preview fallback localStorage used]", { reason: "Supabase 미설정 또는 조회 실패" });
-        merged = draft.data;
-      }
-
       if (!merged) {
-        console.warn("[Preview not found]", { draftId: params.draftId });
+        console.warn("[Preview not found]", { draftId: previewId });
         setMissing(true);
         return;
       }
 
       const normalized = normalizeInvitation(merged);
-
-      console.log("[Preview render data]", {
-        slug: normalized.slug,
+      console.log("[Preview final data]", {
         id: normalized.id,
-        coverImage: normalized.intro.mainImageUrl
-          ? normalized.intro.mainImageUrl.slice(0, 60) + "..."
-          : "(없음)",
-        galleryEnabled: normalized.gallery.enabled,
+        slug: normalized.slug,
+        hasMainImageUrl: Boolean(normalized.intro.mainImageUrl),
         galleryImageCount: normalized.gallery.images.length,
-        galleryImageUrls: normalized.gallery.images.map((img) => ({
-          id: img.id,
-          urlType: img.url?.startsWith("https://")
-            ? "https"
-            : img.url?.startsWith("data:")
-              ? "base64"
-              : img.url
-                ? "other"
-                : "empty",
-          urlPrefix: (img.url || img.previewUrl || img.dataUrl || "").slice(0, 50),
-        })),
+        hasPhotoQuote: Boolean(normalized.quote.imageUrl),
+        hasShareThumbnail: Boolean(normalized.share.kakaoThumbnailUrl || normalized.share.urlThumbnailUrl),
       });
 
       setInvitation(normalized);
@@ -158,7 +133,7 @@ export default function DraftPreviewPage() {
         <div className="mx-auto max-w-[430px] rounded-[18px] bg-white px-6 py-12 shadow-sm ring-1 ring-[#eaded5]">
           <h1 className="text-[20px] font-semibold">저장된 미리보기를 찾을 수 없습니다</h1>
           <p className="mt-3 text-[13px] leading-6 text-[#8a7a70]">
-            브라우저에 저장된 draft가 없거나 만료되었습니다. 제작 화면에서 다시 저장해주세요.
+            저장된 데이터가 없거나 아직 공개되지 않은 주소입니다. 제작 화면에서 다시 저장해주세요.
           </p>
           <Link
             href="/create"

@@ -193,8 +193,8 @@ type DraftEnvelope = {
   data: SavedInvitation;
 };
 
-function saveDraft(invitation: SavedInvitation): string {
-  const draftId = createId("preview");
+function saveDraft(invitation: SavedInvitation, previewId = invitation.id || invitation.slug || createId("preview")): string {
+  const draftId = previewId;
 
   cleanupOldInvitationDrafts({ maxDrafts: 3 });
 
@@ -403,15 +403,24 @@ function CreatePageContent() {
       setInvitation(savedInvitation);
       setPendingUploads([]);
 
-      const draftId = saveDraft(savedInvitation);
+      const previewId = savedInvitation.id || savedInvitation.slug;
+      const draftId = saveDraft(savedInvitation, previewId);
+      console.log("[Invitation saved]", { id: savedInvitation.id, slug: savedInvitation.slug });
+      console.log("[Saved invitation data images]", {
+        hasMainImageUrl: Boolean(savedInvitation.coverImage || savedInvitation.introImage),
+        galleryImageCount: savedInvitation.galleryItems.filter((img) => img.url).length,
+        hasPhotoQuoteUrl: Boolean(savedInvitation.quoteImage),
+        hasShareUrl: Boolean(savedInvitation.kakaoThumbnailUrl || savedInvitation.urlThumbnailUrl),
+      });
       console.log("[Draft saved for preview]", {
         draftId,
         slug: savedInvitation.slug,
         imageCount: savedInvitation.galleryItems.length,
         imagesHavingUrl: savedInvitation.galleryItems.filter((img) => img.url).length,
       });
+      console.log("[Preview route push]", { previewId });
       setStatusMessage("저장되었습니다. 미리보기로 이동합니다.");
-      router.push(`/preview/${draftId}`);
+      router.push(`/preview/${previewId}`);
     } catch (error) {
       console.error("[Save failed]", error);
       setStatusMessage("저장에 실패했습니다. 다시 시도해 주세요.");
