@@ -295,6 +295,18 @@ export type InvitationImageRow = {
   caption: string;
 };
 
+export async function getInvitationByIdAction(invitationId: string): Promise<SavedInvitation | null> {
+  if (!hasSupabaseServerConfig() || !invitationId) return null;
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.from("invitations").select("*").eq("id", invitationId).maybeSingle();
+  if (error) {
+    console.warn("[getInvitationByIdAction] failed", { message: error.message, invitationId });
+    return null;
+  }
+  if (!data) return null;
+  return fromDbPayload(data);
+}
+
 export async function getInvitationImagesAction(invitationId: string): Promise<InvitationImageRow[]> {
   if (!hasSupabaseServerConfig() || !invitationId) return [];
   const supabase = createSupabaseAdminClient();

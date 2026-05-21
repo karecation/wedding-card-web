@@ -184,38 +184,70 @@ function saveLocalInvitation(invitation: SavedInvitation) {
   }
 }
 
+// Draft envelope: preview 페이지에서 Supabase 재조회를 위해 slug/invitationId를 함께 저장
+type DraftEnvelope = {
+  draftId: string;
+  slug: string;
+  invitationId: string;
+  savedAt: string;
+  data: SavedInvitation;
+};
+
 function saveDraft(invitation: SavedInvitation): string {
   const draftId = createId("preview");
 
   cleanupOldInvitationDrafts({ maxDrafts: 3 });
 
-  const lightweightDraft = sanitizeInvitationForLocalStorage(invitation);
+  const lightweightInvitation = sanitizeInvitationForLocalStorage(invitation);
+  const envelope: DraftEnvelope = {
+    draftId,
+    slug: lightweightInvitation.slug,
+    invitationId: lightweightInvitation.id,
+    savedAt: new Date().toISOString(),
+    data: lightweightInvitation,
+  };
 
-  try {
-    safeLocalStorageSet(`invitation-draft-${draftId}`, lightweightDraft);
-  } catch (error) {
-    if (isQuotaExceededError(error)) {
-      // 용량 초과 시 이미지 필드 전부 제거 후 재시도
-      const textOnly: SavedInvitation = {
-        ...lightweightDraft,
-        coverImage: "",
-        introImage: "",
-        quoteImage: "",
-        kakaoThumbnailUrl: "",
-        urlThumbnailUrl: "",
-        galleryItems: [],
-        galleryImages: [],
-        gallery: { ...lightweightDraft.gallery, images: [], enabled: false },
-      };
+  const ok = safeLocalStorageSet(`invitation-draft-${draftId}`, envelope);
+  if (!ok) {
+    // 용량 초과 시 이미지 필드 비우고 텍스트 + slug/id만 저장 — preview에서 Supabase로 fetch 가능
+    const textOnlyData: SavedInvitation = {
+      ...lightweightInvitation,
+      coverImage: "",
+      introImage: "",
+      quoteImage: "",
+      kakaoThumbnailUrl: "",
+      urlThumbnailUrl: "",
+      galleryItems: [],
+      galleryImages: [],
+      gallery: { ...lightweightInvitation.gallery, images: [], enabled: false },
+    };
+    const textOnlyEnvelope: DraftEnvelope = { ...envelope, data: textOnlyData };
+    const ok2 = safeLocalStorageSet(`invitation-draft-${draftId}`, textOnlyEnvelope);
+    if (!ok2) {
+      // 최후 fallback: slug/invitationId만 — preview가 Supabase로 전체 조회
       try {
-        safeLocalStorageSet(`invitation-draft-${draftId}`, textOnly);
+        window.localStorage.setItem(
+          `invitation-draft-${draftId}`,
+          JSON.stringify({
+            draftId,
+            slug: envelope.slug,
+            invitationId: envelope.invitationId,
+            savedAt: envelope.savedAt,
+            data: null,
+          }),
+        );
       } catch {
-        console.warn("localStorage 용량 초과 — 미리보기 저장을 건너뜁니다.");
+        console.warn("[saveDraft] localStorage 용량 초과 — slug/id만 저장 시도도 실패");
       }
-    } else {
-      throw error;
     }
   }
+
+  console.log("[Draft envelope saved]", {
+    draftId,
+    slug: envelope.slug,
+    invitationId: envelope.invitationId,
+    hasGallery: envelope.data.galleryItems.length > 0,
+  });
 
   return draftId;
 }
@@ -332,6 +364,13 @@ function CreatePageContent() {
       setStatusMessage("청첩장 저장 중...");
       savedInvitation.updatedAt = new Date().toISOString();
       savedInvitation = sanitizeInvitationForLocalStorage(savedInvitation);
+
+      console.log("[Final data image check]", {
+        hasMainImage: Boolean(savedInvitation.coverImage || savedInvitation.introImage),
+        galleryCount: savedInvitation.galleryItems.filter((img) => img.url).length,
+        hasPhotoQuote: Boolean(savedInvitation.quoteImage),
+        hasShareThumbnail: Boolean(savedInvitation.kakaoThumbnailUrl || savedInvitation.urlThumbnailUrl),
+      });
 
       console.log("[Sanitized invitation payload]", {
         id: savedInvitation.id,

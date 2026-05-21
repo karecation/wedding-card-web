@@ -7,7 +7,8 @@ import { useParams } from "next/navigation";
 import { addGuestbookAction, getInvitationBySlugAction, getInvitationImagesAction, submitRsvpAction } from "@/app/actions/invitationActions";
 import InvitationRenderer from "@/components/invitation/InvitationRenderer";
 import type { GuestbookEntry } from "@/components/invitation/GuestbookSection";
-import { emptyInvitationData, type GalleryImage, type SavedInvitation } from "@/types/invitation";
+import { mergeInvitationImages } from "@/lib/invitation/mergeInvitationImages";
+import { emptyInvitationData, type SavedInvitation } from "@/types/invitation";
 
 const collectionKey = "mobile-wedding-invitations";
 
@@ -33,59 +34,33 @@ export default function SharedInvitationPage() {
 
   useEffect(() => {
     const load = async () => {
+      console.log("[Shared invitation load start]", { slug });
       const fromSupabase = await getInvitationBySlugAction(slug);
-      let loaded: SavedInvitation | null = fromSupabase ?? readLocalInvitation(slug);
+      const localFallback = fromSupabase ? null : readLocalInvitation(slug);
+      let loaded: SavedInvitation | null = fromSupabase ?? localFallback;
 
       if (loaded) {
-        const images = await getInvitationImagesAction(loaded.id);
-        const mainRows = images.filter((img) => (img.type === "main" || img.type === "intro") && img.url?.startsWith("https://"));
-        const galleryRows = images.filter((img) => img.type === "gallery" && img.url?.startsWith("https://"));
-        const shareRows = images.filter((img) => img.type === "share" && img.url?.startsWith("https://"));
-        const photoQuoteRows = images.filter((img) => (img.type === "photo-quote" || img.type === "quote") && img.url?.startsWith("https://"));
-
-        if (mainRows.length > 0 || shareRows.length > 0 || photoQuoteRows.length > 0) {
-          const mainImage = mainRows[0]?.url;
-          const kakaoShare = shareRows.find((img) => img.caption === "kakao")?.url;
-          const urlShare = shareRows.find((img) => img.caption === "url")?.url ?? shareRows[0]?.url;
-          loaded = {
-            ...loaded,
-            coverImage: mainImage ?? loaded.coverImage,
-            introImage: mainImage ?? loaded.introImage,
-            quoteImage: photoQuoteRows[0]?.url ?? loaded.quoteImage,
-            kakaoThumbnailUrl: kakaoShare ?? loaded.kakaoThumbnailUrl,
-            urlThumbnailUrl: urlShare ?? loaded.urlThumbnailUrl,
-          };
-        }
-
-        console.log("[Preview image merge]", {
-          mainCount: mainRows.length,
-          galleryCount: galleryRows.length,
-          shareCount: shareRows.length,
-          photoQuoteCount: photoQuoteRows.length,
+        const imageRows = await getInvitationImagesAction(loaded.id);
+        const byType = imageRows.reduce<Record<string, number>>((acc, row) => {
+          acc[row.type] = (acc[row.type] ?? 0) + 1;
+          return acc;
+        }, {});
+        console.log("[Shared image rows loaded]", {
+          source: fromSupabase ? "supabase" : "local",
+          count: imageRows.length,
+          byType,
         });
 
-        if (galleryRows.length > 0) {
-          const galleryImages: GalleryImage[] = galleryRows.map((img, index) => ({
-            id: img.id,
-            url: img.url,
-            previewUrl: img.url,
-            caption: img.caption ?? "",
-            order: img.sort_order ?? index,
-            type: "gallery" as const,
-            uploadStatus: "uploaded" as const,
-          }));
-          const currentGallery = loaded.gallery ?? emptyInvitationData.gallery;
-          loaded = {
-            ...loaded,
-            galleryItems: galleryImages,
-            galleryImages: galleryImages.map((img) => img.url ?? "").filter(Boolean),
-            gallery: {
-              ...currentGallery,
-              images: galleryImages,
-              enabled: currentGallery.enabled || galleryImages.length > 0,
-            },
-          };
-        }
+        loaded = mergeInvitationImages(loaded, imageRows);
+
+        console.log("[Shared image merge]", {
+          hasMainImage: Boolean(loaded.coverImage),
+          galleryCount: loaded.galleryItems.length,
+          hasPhotoQuote: Boolean(loaded.quoteImage),
+          hasShareThumbnail: Boolean(loaded.kakaoThumbnailUrl || loaded.urlThumbnailUrl),
+        });
+      } else {
+        console.warn("[Shared invitation not found]", { slug });
       }
 
       setInvitation(loaded);
