@@ -15,20 +15,31 @@ export function getImageSrc(image?: ImageLike): string {
 }
 
 // 대표사진 src 결정. 여러 데이터 형식(NormalizedInvitation, SavedInvitation,
-// 외부에서 들어오는 임의 객체)에서 호환성 있게 추출.
-export function getMainImageSrc(invitation: unknown): string {
-  const inv = (invitation ?? {}) as Record<string, unknown>;
-  const intro = (inv.intro ?? {}) as Record<string, unknown>;
+// IntroSection만 받는 경우 등)에서 호환성 있게 추출.
+//
+// 받을 수 있는 형태:
+//   - NormalizedInvitation: { intro: { mainImageUrl, mainImagePreviewUrl }, ... }
+//   - SavedInvitation/InvitationData: { coverImage, introImage }
+//   - intro section만: { mainImageUrl, mainImagePreviewUrl, mainImage }
+//   - 임의의 객체 wrappers
+export function getMainImageSrc(input: unknown): string {
+  if (!input) return "";
+  // 문자열을 직접 받은 경우
+  if (typeof input === "string") return input;
+  const inv = input as Record<string, unknown>;
+  // input이 NormalizedInvitation일 때 intro 객체. input이 intro section 자체일 때 input.
+  const intro = (inv.intro ?? inv) as Record<string, unknown>;
 
   return (
-    getImageSrc(intro.mainImage as ImageLike) ||
+    getImageSrc(intro?.mainImage as ImageLike) ||
     getImageSrc(inv.mainImage as ImageLike) ||
     getImageSrc(inv.introImage as ImageLike) ||
     getImageSrc(inv.coverImage as ImageLike) ||
-    (typeof intro.mainImageUrl === "string" ? intro.mainImageUrl : "") ||
-    (typeof intro.mainImagePreviewUrl === "string" ? intro.mainImagePreviewUrl : "") ||
-    (typeof inv.mainImageUrl === "string" ? inv.mainImageUrl : "") ||
-    (typeof inv.introImageUrl === "string" ? inv.introImageUrl : "") ||
+    (typeof intro?.mainImageUrl === "string" ? (intro.mainImageUrl as string) : "") ||
+    (typeof intro?.mainImagePreviewUrl === "string" ? (intro.mainImagePreviewUrl as string) : "") ||
+    (typeof inv.mainImageUrl === "string" ? (inv.mainImageUrl as string) : "") ||
+    (typeof inv.introImageUrl === "string" ? (inv.introImageUrl as string) : "") ||
+    (typeof inv.coverImageUrl === "string" ? (inv.coverImageUrl as string) : "") ||
     ""
   );
 }

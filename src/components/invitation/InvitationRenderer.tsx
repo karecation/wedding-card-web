@@ -130,8 +130,39 @@ function renderSection(id: MenuSectionId, props: Props, normalized: NormalizedIn
   return null;
 }
 
+// 이미 normalize된 객체인지 감지 — 이중 normalize 방지 (기존 normalize는 flat coverImage를 읽기 때문에
+// NormalizedInvitation을 다시 normalize하면 image url이 손실됨)
+function isAlreadyNormalized(input: unknown): input is NormalizedInvitation {
+  if (!input || typeof input !== "object") return false;
+  const obj = input as Record<string, unknown>;
+  const intro = obj.intro as Record<string, unknown> | undefined;
+  const design = obj.design as Record<string, unknown> | undefined;
+  const basic = obj.basic as Record<string, unknown> | undefined;
+  return Boolean(
+    intro && typeof intro === "object" && ("mainImageUrl" in intro || "mainImagePreviewUrl" in intro) &&
+    design && typeof design === "object" && "themeColor" in design &&
+    basic && typeof basic === "object" && "groomName" in basic,
+  );
+}
+
 export default function InvitationRenderer(props: Props) {
-  const invitation = normalizeInvitation(props.invitation);
+  const invitation = isAlreadyNormalized(props.invitation)
+    ? props.invitation
+    : normalizeInvitation(props.invitation);
+
+  if (typeof window !== "undefined") {
+    console.log("[InvitationRenderer before IntroSection]", {
+      wasAlreadyNormalized: isAlreadyNormalized(props.invitation),
+      rootKeys: invitation ? Object.keys(invitation) : [],
+      introKeys: invitation?.intro ? Object.keys(invitation.intro) : [],
+      introMainImageUrl: invitation?.intro?.mainImageUrl,
+      introMainImagePreviewUrl: invitation?.intro?.mainImagePreviewUrl,
+      galleryImageCount: invitation?.gallery?.images?.length ?? 0,
+      firstGalleryUrl: invitation?.gallery?.images?.[0]?.url,
+      quoteImageUrl: invitation?.quote?.imageUrl,
+    });
+  }
+
   const tokens = themeTokens[invitation.design.themeColor];
   const weight = invitation.design.fontWeight === "light" ? 300 : invitation.design.fontWeight === "medium" ? 600 : 400;
   const fontScale = invitation.design.fontWeight === "light" ? 0.97 : invitation.design.fontWeight === "medium" ? 1.06 : 1;

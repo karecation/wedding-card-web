@@ -96,6 +96,18 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
   }, [mainImageSrc]);
 
   if (typeof window !== "undefined") {
+    const inv = invitation as unknown as Record<string, unknown>;
+    const introAny = inv.intro as Record<string, unknown> | undefined;
+    console.log("[IntroSection props debug]", {
+      receivedKeys: invitation ? Object.keys(invitation) : [],
+      introKeys: introAny ? Object.keys(introAny) : [],
+      directMainImageUrl: inv.mainImageUrl,
+      directIntroImageUrl: inv.introImageUrl,
+      directCoverImage: inv.coverImage,
+      introMainImageUrl: introAny?.mainImageUrl,
+      introMainImagePreviewUrl: introAny?.mainImagePreviewUrl,
+      finalMainImageSrc: mainImageSrc,
+    });
     console.log("[Intro image src]", {
       mainImageSrc,
       srcType: mainImageSrc.startsWith("https://")
