@@ -13,6 +13,19 @@ export default function GallerySection({
     const key = image.id || image.url || image.dataUrl || image.previewUrl || String(index);
     return source.findIndex((item, itemIndex) => (item.id || item.url || item.dataUrl || item.previewUrl || String(itemIndex)) === key) === index;
   });
+  if (typeof window !== "undefined") {
+    console.log("[GallerySection] 렌더링 시작", {
+      mode,
+      enabled: invitation.gallery.enabled,
+      imageCount: images.length,
+      imageSources: images.map((img, idx) => ({
+        index: idx,
+        id: img.id,
+        src: (img.url || img.dataUrl || img.previewUrl || "").slice(0, 60),
+        srcType: img.url?.startsWith("https://") ? "https" : img.url?.startsWith("data:") || img.dataUrl ? "base64" : "other",
+      })),
+    });
+  }
   if (!invitation.gallery.enabled) return null;
   if (images.length === 0 && mode === "public") return null;
   if (images.length === 0) {

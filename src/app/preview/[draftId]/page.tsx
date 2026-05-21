@@ -16,12 +16,32 @@ export default function DraftPreviewPage() {
 
     try {
       const raw = window.localStorage.getItem(`invitation-draft-${params.draftId}`);
+      console.log("[Preview load] draft 조회", {
+        draftId: params.draftId,
+        found: Boolean(raw),
+        rawSizeKb: raw ? Math.round(raw.length / 1024) : 0,
+      });
       if (!raw) {
         setMissing(true);
         return;
       }
-      setInvitation(normalizeInvitation(JSON.parse(raw)));
-    } catch {
+      const parsed = JSON.parse(raw);
+      const normalized = normalizeInvitation(parsed);
+      console.log("[Preview load] invitation data", {
+        slug: normalized.slug,
+        id: normalized.id,
+        coverImage: normalized.intro.mainImageUrl ? normalized.intro.mainImageUrl.slice(0, 60) + "..." : "(없음)",
+        galleryEnabled: normalized.gallery.enabled,
+        galleryImageCount: normalized.gallery.images.length,
+        galleryImageUrls: normalized.gallery.images.map((img) => ({
+          id: img.id,
+          urlType: img.url?.startsWith("https://") ? "https" : img.url?.startsWith("data:") ? "base64" : img.url ? "other" : "empty",
+          urlPrefix: (img.url || img.previewUrl || img.dataUrl || "").slice(0, 50),
+        })),
+      });
+      setInvitation(normalized);
+    } catch (error) {
+      console.error("[Preview load] 파싱 실패", error);
       setMissing(true);
     }
   }, [params.draftId]);

@@ -81,25 +81,27 @@ function getApproxStorageSizeKb(value: unknown): number {
   }
 }
 
-// blob: / data: URL과 File 객체를 제거한 가벼운 InvitationData 반환 (editingState→localStorage 저장용)
+// editingState→localStorage 저장용: File 객체와 blob: URL만 제거.
+// base64(dataUrl)는 Supabase 미설정 시 fallback으로 유지 (preview 화면에서 렌더링 가능)
 function stripHeavyImageFields(data: InvitationData): InvitationData {
-  const clean = (url: string) => (url.startsWith("blob:") || url.startsWith("data:")) ? "" : url;
+  const cleanUrl = (url: string) => (url.startsWith("blob:") ? "" : url);
   const cleanGalleryItem = (img: import("@/types/invitation").GalleryImage) => ({
     ...img,
-    file: undefined,
-    dataUrl: undefined,
-    previewUrl: img.previewUrl ? clean(img.previewUrl) : "",
-    url: img.url ? clean(img.url) : undefined,
+    file: undefined, // File 객체는 JSON 직렬화 불가
+    // blob:는 제거, dataUrl(base64)/https는 유지
+    previewUrl: img.previewUrl ? cleanUrl(img.previewUrl) : "",
+    url: img.url ? cleanUrl(img.url) : undefined,
+    dataUrl: img.dataUrl, // base64 fallback 유지
   });
   return {
     ...data,
-    coverImage: clean(data.coverImage),
-    introImage: clean(data.introImage),
-    quoteImage: clean(data.quoteImage),
-    kakaoThumbnailUrl: clean(data.kakaoThumbnailUrl),
-    urlThumbnailUrl: clean(data.urlThumbnailUrl),
+    coverImage: cleanUrl(data.coverImage),
+    introImage: cleanUrl(data.introImage),
+    quoteImage: cleanUrl(data.quoteImage),
+    kakaoThumbnailUrl: cleanUrl(data.kakaoThumbnailUrl),
+    urlThumbnailUrl: cleanUrl(data.urlThumbnailUrl),
     galleryItems: data.galleryItems.map(cleanGalleryItem),
-    galleryImages: data.galleryImages.filter((u) => !u.startsWith("blob:") && !u.startsWith("data:")),
+    galleryImages: data.galleryImages.filter((u) => !u.startsWith("blob:")),
     gallery: data.gallery
       ? { ...data.gallery, images: data.gallery.images.map(cleanGalleryItem) }
       : data.gallery,
@@ -254,17 +256,35 @@ function CreatePageContent() {
 
     let savedInvitation = createSavedInvitation(invitation);
 
+    const hasSupabaseEnv = Boolean(
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+    );
+
     console.log("[Save start]", {
       slug: savedInvitation.slug,
+      id: savedInvitation.id,
       pendingUploads: pendingUploads.length,
+      pendingByType: pendingUploads.reduce<Record<string, number>>((acc, u) => {
+        acc[u.type] = (acc[u.type] ?? 0) + 1;
+        return acc;
+      }, {}),
+      galleryItemsInState: invitation.galleryItems.length,
+      galleryWithFile: invitation.galleryItems.filter((i) => i.file).length,
     });
     console.log("[Supabase env]", {
       hasUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
       hasAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
     });
 
+    if (!hasSupabaseEnv) {
+      console.warn(
+        "[Save] Supabase 환경변수 미설정 — base64 fallback 모드로 저장됩니다. .env.local에 NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SECRET_KEY 를 설정하세요.",
+      );
+    }
+
     try {
-      if (pendingUploads.length > 0) {
+      if (pendingUploads.length > 0 || invitation.galleryItems.some((i) => i.file)) {
         setStatusMessage(`이미지 업로드 중 (0 / ${pendingUploads.length})`);
 
         const { invitation: uploaded, failedCount } = await uploadInvitationImages(
@@ -288,11 +308,27 @@ function CreatePageContent() {
       savedInvitation.updatedAt = new Date().toISOString();
       savedInvitation = sanitizeInvitationForLocalStorage(savedInvitation);
 
+      console.log("[Sanitized invitation payload]", {
+        id: savedInvitation.id,
+        slug: savedInvitation.slug,
+        coverImage: savedInvitation.coverImage ? savedInvitation.coverImage.slice(0, 60) + "..." : "(없음)",
+        introImage: savedInvitation.introImage ? savedInvitation.introImage.slice(0, 60) + "..." : "(없음)",
+        quoteImage: savedInvitation.quoteImage ? savedInvitation.quoteImage.slice(0, 60) + "..." : "(없음)",
+        kakaoThumbnailUrl: savedInvitation.kakaoThumbnailUrl ? savedInvitation.kakaoThumbnailUrl.slice(0, 60) + "..." : "(없음)",
+        urlThumbnailUrl: savedInvitation.urlThumbnailUrl ? savedInvitation.urlThumbnailUrl.slice(0, 60) + "..." : "(없음)",
+        galleryItemsCount: savedInvitation.galleryItems.length,
+        gallerySources: savedInvitation.galleryItems.map((img) => ({
+          id: img.id,
+          urlType: img.url?.startsWith("https://") ? "https" : img.url?.startsWith("data:") ? "base64" : "empty",
+          urlPrefix: img.url?.slice(0, 50),
+        })),
+      });
+
       console.log("[DB save start]", { slug: savedInvitation.slug });
       try {
         const result = await saveInvitationAction(savedInvitation);
         savedInvitation = result.invitation;
-        console.log("[DB save success]", { slug: savedInvitation.slug, id: savedInvitation.id });
+        console.log("[DB save success]", { slug: savedInvitation.slug, id: savedInvitation.id, source: result.source });
       } catch (dbError) {
         console.warn("[DB save failed]", { error: dbError instanceof Error ? dbError.message : dbError });
         setStatusMessage("DB 저장 실패 — 로컬 미리보기로 저장합니다.");
@@ -304,10 +340,11 @@ function CreatePageContent() {
       setPendingUploads([]);
 
       const draftId = saveDraft(savedInvitation);
-      console.log("[Preview loaded]", {
-        source: "draft",
+      console.log("[Draft saved for preview]", {
+        draftId,
         slug: savedInvitation.slug,
         imageCount: savedInvitation.galleryItems.length,
+        imagesHavingUrl: savedInvitation.galleryItems.filter((img) => img.url).length,
       });
       setStatusMessage("저장되었습니다. 미리보기로 이동합니다.");
       router.push(`/preview/${draftId}`);
@@ -351,6 +388,12 @@ function CreatePageContent() {
           </div>
         </div>
       </div>
+
+      {!process.env.NEXT_PUBLIC_SUPABASE_URL && (
+        <div className="border-y border-[#f4dccd] bg-[#fff7f0] px-4 py-2 text-center text-[12px] leading-5 text-[#a06a4a]">
+          ⚠ Supabase가 설정되지 않아 base64 fallback 모드로 동작합니다. 영구 저장을 원하시면 <code className="rounded bg-white px-1.5 py-0.5">.env.local</code>에 <code className="rounded bg-white px-1.5 py-0.5">NEXT_PUBLIC_SUPABASE_URL</code>, <code className="rounded bg-white px-1.5 py-0.5">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, <code className="rounded bg-white px-1.5 py-0.5">SUPABASE_SECRET_KEY</code>를 추가하세요.
+        </div>
+      )}
 
       <div className="create-main mx-auto w-full max-w-[1080px] px-4 py-4">
         <aside className="preview-panel">

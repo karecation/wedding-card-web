@@ -33,7 +33,7 @@ function IntroMedia({ invitation, src }: { invitation: NormalizedInvitation; src
             <path d="M8 8 40 40" stroke="currentColor" strokeWidth="2" />
           </svg>
         </div>
-      )}
+      )}
     </div>
   );
 }
@@ -58,6 +58,14 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
   const venue = [invitation.basic.venueName, invitation.basic.venueHall].filter(Boolean).join(" ");
   const src = invitation.intro.mainImagePreviewUrl || invitation.intro.mainImageUrl || "";
   const names = `${invitation.basic.groomName}  |  ${invitation.basic.brideName}`;
+
+  if (typeof window !== "undefined") {
+    console.log("[IntroSection] 렌더링", {
+      layout: invitation.design.introLayout,
+      srcType: src.startsWith("https://") ? "https" : src.startsWith("data:") ? "base64" : src ? "other" : "empty",
+      srcPrefix: src.slice(0, 60),
+    });
+  }
 
   if (invitation.design.introLayout === "photoFirst") {
     return (
@@ -95,7 +103,7 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
       <section className="text-center">
         <div className={`intro-media-frame relative aspect-[3/4] w-full overflow-hidden ${frameClass(invitation.design.frameStyle)}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt="대표 사진" className="h-full w-full object-cover" />
+          <img src={src} alt="대표 사진" className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.1)_45%,rgba(0,0,0,.5))]" />
           <div className="absolute inset-x-0 bottom-10 px-8 text-white">
             <p className="text-[10px] uppercase tracking-[0.34em] text-white/75">{invitation.intro.subText}</p>

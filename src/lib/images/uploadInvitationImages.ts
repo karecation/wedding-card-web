@@ -26,7 +26,18 @@ export async function uploadInvitationImages(
     (img) => img.file && !handledGalleryIds.has(img.id) && !img.url?.startsWith("https://"),
   );
 
+  console.log("[uploadInvitationImages] 시작", {
+    invitationId: invitation.id,
+    pendingUploadsCount: pendingUploads.length,
+    pendingByType: pendingUploads.reduce<Record<string, number>>((acc, u) => {
+      acc[u.type] = (acc[u.type] ?? 0) + 1;
+      return acc;
+    }, {}),
+    extraGalleryCount: extraGalleryItems.length,
+  });
+
   if (pendingUploads.length === 0 && extraGalleryItems.length === 0) {
+    console.log("[uploadInvitationImages] 업로드할 파일 없음 — 원본 invitation 반환");
     return { invitation, failedCount: 0 };
   }
 
@@ -128,6 +139,15 @@ export async function uploadInvitationImages(
       images: finalItems,
     };
   }
+
+  console.log("[uploadInvitationImages] 완료", {
+    invitationId: updatedInvitation.id,
+    coverImage: updatedInvitation.coverImage ? (updatedInvitation.coverImage.startsWith("https://") ? "https ✓" : "non-https ✗") : "없음",
+    introImage: updatedInvitation.introImage ? (updatedInvitation.introImage.startsWith("https://") ? "https ✓" : "non-https ✗") : "없음",
+    galleryItemsCount: updatedInvitation.galleryItems.length,
+    galleryHttpsCount: updatedInvitation.galleryItems.filter((img) => img.url?.startsWith("https://")).length,
+    failedCount: failed,
+  });
 
   return { invitation: updatedInvitation, failedCount: failed };
 }

@@ -171,8 +171,20 @@ async function syncRelatedTables(invitation: SavedInvitation) {
 
 export async function saveInvitationAction(invitation: SavedInvitation) {
   if (!hasSupabaseServerConfig()) {
+    console.warn("[saveInvitationAction] Supabase 미설정 — localStorage 전용 모드로 저장합니다.");
     return { invitation, source: "local" as const };
   }
+
+  console.log("[saveInvitationAction] DB 저장 시작", {
+    id: invitation.id,
+    slug: invitation.slug,
+    coverImage: invitation.coverImage ? (invitation.coverImage.startsWith("https://") ? "https" : invitation.coverImage.startsWith("data:") ? "base64" : "other") : "없음",
+    galleryCount: invitation.galleryItems?.length ?? 0,
+    galleryUrlSamples: (invitation.galleryItems ?? []).slice(0, 3).map((img) => ({
+      id: img.id,
+      urlPrefix: img.url?.slice(0, 30),
+    })),
+  });
 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
@@ -206,6 +218,7 @@ export async function uploadInvitationFileAction(formData: FormData): Promise<Up
   }
 
   if (!hasSupabaseServerConfig()) {
+    console.warn("[uploadInvitationFileAction] Supabase 미설정 — base64 fallback 사용", { id, type, fileName: file.name });
     return { id, type, publicUrl: "" };
   }
 
@@ -234,6 +247,14 @@ export async function uploadInvitationFileAction(formData: FormData): Promise<Up
   }
 
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+
+  console.log("[uploadInvitationFileAction] 업로드 성공", {
+    id,
+    type,
+    bucket,
+    path,
+    publicUrl: data.publicUrl,
+  });
 
   return { id, type, publicUrl: data.publicUrl };
 }
