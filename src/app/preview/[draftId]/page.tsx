@@ -111,7 +111,33 @@ export default function DraftPreviewPage() {
         return;
       }
 
+      // normalizeInvitation 직전 raw 데이터 진단
+      console.log("[Preview final data detailed]", {
+        id: merged.id,
+        slug: merged.slug,
+        coverImage: merged.coverImage,
+        introImage: merged.introImage,
+        quoteImage: merged.quoteImage,
+        kakaoThumbnailUrl: merged.kakaoThumbnailUrl,
+        urlThumbnailUrl: merged.urlThumbnailUrl,
+        galleryEnabled: merged.gallery?.enabled,
+        galleryImagesCount: merged.gallery?.images?.length ?? 0,
+        galleryItemsCount: merged.galleryItems?.length ?? 0,
+        firstGalleryUrl: merged.gallery?.images?.[0]?.url || merged.galleryItems?.[0]?.url,
+      });
+
       const normalized = normalizeInvitation(merged);
+
+      // normalizeInvitation 직후 결과 진단 (image url 보존 확인)
+      console.log("[Renderer image data]", {
+        introMainImageUrl: normalized.intro.mainImageUrl,
+        introMainImagePreviewUrl: normalized.intro.mainImagePreviewUrl,
+        galleryImageCount: normalized.gallery.images.length,
+        firstGalleryUrl: normalized.gallery.images[0]?.url,
+        quoteImageUrl: normalized.quote.imageUrl,
+        kakaoThumbnailUrl: normalized.share.kakaoThumbnailUrl,
+        urlThumbnailUrl: normalized.share.urlThumbnailUrl,
+      });
       console.log("[Preview final data]", {
         id: normalized.id,
         slug: normalized.slug,

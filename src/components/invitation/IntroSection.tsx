@@ -1,6 +1,7 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState } from "react";
+import { getMainImageSrc } from "@/lib/invitation/getImageSrc";
 import type { NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
 
 const weekdaysEn = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -19,21 +20,47 @@ function frameClass(style: NormalizedInvitation["design"]["frameStyle"]) {
   return "rounded-[4px]";
 }
 
-function IntroMedia({ invitation, src }: { invitation: NormalizedInvitation; src: string }) {
+function Placeholder() {
   return (
-    <div className={`intro-media-frame relative mx-auto mt-8 aspect-[3/4] w-full max-w-[310px] overflow-hidden bg-[#e8e5e1] ${frameClass(invitation.design.frameStyle)}`}>
-      {src ? (
+    <div className="grid h-full place-items-center text-[#bbb]">
+      <svg width="54" height="54" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <rect x="8" y="10" width="32" height="28" rx="2" stroke="currentColor" strokeWidth="2" />
+        <path d="M10 34 19 25l6 5 7-8 6 8" stroke="currentColor" strokeWidth="2" />
+        <path d="M8 8 40 40" stroke="currentColor" strokeWidth="2" />
+      </svg>
+    </div>
+  );
+}
+
+function IntroMedia({
+  invitation,
+  src,
+  onError,
+  onLoad,
+  showImage,
+}: {
+  invitation: NormalizedInvitation;
+  src: string;
+  onError: () => void;
+  onLoad: () => void;
+  showImage: boolean;
+}) {
+  return (
+    <div
+      className={`intro-media-frame relative mx-auto mt-8 aspect-[3/4] w-full max-w-[310px] overflow-hidden bg-[#e8e5e1] ${frameClass(invitation.design.frameStyle)}`}
+    >
+      {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="대표 사진" className="h-full w-full object-cover" />
+        <img
+          src={src}
+          alt="대표 사진"
+          className="h-full w-full object-cover"
+          onLoad={onLoad}
+          onError={onError}
+        />
       ) : (
-        <div className="grid h-full place-items-center text-[#bbb]">
-          <svg width="54" height="54" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-            <rect x="8" y="10" width="32" height="28" rx="2" stroke="currentColor" strokeWidth="2" />
-            <path d="M10 34 19 25l6 5 7-8 6 8" stroke="currentColor" strokeWidth="2" />
-            <path d="M8 8 40 40" stroke="currentColor" strokeWidth="2" />
-          </svg>
-        </div>
-      )}
+        <Placeholder />
+      )}
     </div>
   );
 }
@@ -56,21 +83,53 @@ function DateBlock({ date }: { date: Date }) {
 export default function IntroSection({ invitation }: { invitation: NormalizedInvitation }) {
   const date = getDate(invitation.basic.weddingDate);
   const venue = [invitation.basic.venueName, invitation.basic.venueHall].filter(Boolean).join(" ");
-  const src = invitation.intro.mainImageUrl || invitation.intro.mainImagePreviewUrl || "";
   const names = `${invitation.basic.groomName}  |  ${invitation.basic.brideName}`;
 
+  // 대표사진 src를 다양한 데이터 형식에서 추출
+  const mainImageSrc = getMainImageSrc(invitation);
+  const [imageError, setImageError] = useState(false);
+  const showImage = Boolean(mainImageSrc) && !imageError;
+
+  // src가 바뀌면 에러 상태 리셋 (예: 다른 invitation으로 전환 시)
+  useEffect(() => {
+    setImageError(false);
+  }, [mainImageSrc]);
+
   if (typeof window !== "undefined") {
-    console.log("[IntroSection] 렌더링", {
+    console.log("[Intro image src]", {
+      mainImageSrc,
+      srcType: mainImageSrc.startsWith("https://")
+        ? "https"
+        : mainImageSrc.startsWith("data:")
+          ? "base64"
+          : mainImageSrc
+            ? "other"
+            : "empty",
       layout: invitation.design.introLayout,
-      srcType: src.startsWith("https://") ? "https" : src.startsWith("data:") ? "base64" : src ? "other" : "empty",
-      srcPrefix: src.slice(0, 60),
+      showImage,
+      imageError,
     });
   }
+
+  const handleLoad = () => {
+    console.log("[Intro image loaded]", { mainImageSrc });
+  };
+
+  const handleError = () => {
+    console.error("[Intro image failed]", { mainImageSrc });
+    setImageError(true);
+  };
 
   if (invitation.design.introLayout === "photoFirst") {
     return (
       <section className="px-7 pb-10 pt-7 text-center">
-        <IntroMedia invitation={invitation} src={src} />
+        <IntroMedia
+          invitation={invitation}
+          src={mainImageSrc}
+          showImage={showImage}
+          onLoad={handleLoad}
+          onError={handleError}
+        />
         <div className="mt-8">
           <DateBlock date={date} />
         </div>
@@ -98,12 +157,18 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
     );
   }
 
-  if (invitation.design.introLayout === "saveTheDate" && src) {
+  if (invitation.design.introLayout === "saveTheDate" && showImage) {
     return (
       <section className="text-center">
         <div className={`intro-media-frame relative aspect-[3/4] w-full overflow-hidden ${frameClass(invitation.design.frameStyle)}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt="대표 사진" className="h-full w-full object-cover" />
+          <img
+            src={mainImageSrc}
+            alt="대표 사진"
+            className="h-full w-full object-cover"
+            onLoad={handleLoad}
+            onError={handleError}
+          />
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.1)_45%,rgba(0,0,0,.5))]" />
           <div className="absolute inset-x-0 bottom-10 px-8 text-white">
             <p className="text-[10px] uppercase tracking-[0.34em] text-white/75">{invitation.intro.subText}</p>
@@ -118,11 +183,18 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
     );
   }
 
+  // basic + saveTheDate(이미지 없음 fallback)
   return (
     <section className="px-7 pb-10 pt-11 text-center">
       <DateBlock date={date} />
 
-      <IntroMedia invitation={invitation} src={src} />
+      <IntroMedia
+        invitation={invitation}
+        src={mainImageSrc}
+        showImage={showImage}
+        onLoad={handleLoad}
+        onError={handleError}
+      />
 
       <p className="mt-9 whitespace-nowrap text-[17px] font-light tracking-[-0.01em] text-[#251b17]">{names}</p>
       <p className="mt-5 whitespace-nowrap text-[13px] leading-6 text-[#75635b]">
