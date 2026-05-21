@@ -10,6 +10,17 @@ export type ImageUploadType =
   | "kakao_thumbnail"
   | "url_thumbnail";
 
+export type ImageAsset = {
+  id?: string;
+  file?: File;
+  url?: string;
+  previewUrl?: string;
+  dataUrl?: string;
+  caption?: string;
+  order?: number;
+  uploadStatus?: "local" | "uploading" | "uploaded" | "failed";
+};
+
 export type MenuSectionId =
   | "intro"
   | "greeting"
@@ -35,15 +46,10 @@ export type TransportItem = {
   description: string;
 };
 
-export type GalleryImage = {
+export type GalleryImage = ImageAsset & {
   id: string;
-  file?: File;
-  url?: string;
   previewUrl: string;
-  dataUrl?: string;
-  caption?: string;
   order: number;
-  uploadStatus?: "local" | "uploading" | "uploaded" | "failed";
   type?: ImageUploadType;
 };
 

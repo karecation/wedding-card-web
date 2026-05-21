@@ -242,7 +242,7 @@ function orderedGalleryImages(data: InvitationData) {
   return source
     .map((image, index) => ({
       ...image,
-      previewUrl: image.previewUrl || image.url || "",
+      previewUrl: image.previewUrl || image.url || image.dataUrl || "",
       order: image.order ?? index,
     }))
     .filter((image) => image.previewUrl || image.url)
@@ -323,7 +323,7 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         nextGalleryItems.push({
           id,
           file,
-          url: dataUrl || previewUrl,
+          url: "",
           previewUrl,
           dataUrl,
           caption: "",

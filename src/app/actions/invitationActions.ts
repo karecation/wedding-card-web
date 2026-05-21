@@ -97,9 +97,9 @@ async function syncRelatedTables(invitation: SavedInvitation) {
   const imageRows = [
     invitation.coverImage?.startsWith("https://") && { invitation_id: invitation.id, type: "main", url: invitation.coverImage, sort_order: 0 },
     invitation.introImage?.startsWith("https://") && { invitation_id: invitation.id, type: "intro", url: invitation.introImage, sort_order: 1 },
-    invitation.quoteImage?.startsWith("https://") && { invitation_id: invitation.id, type: "quote", url: invitation.quoteImage, sort_order: 2 },
-    invitation.kakaoThumbnailUrl?.startsWith("https://") && { invitation_id: invitation.id, type: "kakao_thumbnail", url: invitation.kakaoThumbnailUrl, sort_order: 3 },
-    invitation.urlThumbnailUrl?.startsWith("https://") && { invitation_id: invitation.id, type: "url_thumbnail", url: invitation.urlThumbnailUrl, sort_order: 4 },
+    invitation.quoteImage?.startsWith("https://") && { invitation_id: invitation.id, type: "photo-quote", url: invitation.quoteImage, sort_order: 2 },
+    invitation.kakaoThumbnailUrl?.startsWith("https://") && { invitation_id: invitation.id, type: "share", url: invitation.kakaoThumbnailUrl, sort_order: 3, caption: "kakao" },
+    invitation.urlThumbnailUrl?.startsWith("https://") && { invitation_id: invitation.id, type: "share", url: invitation.urlThumbnailUrl, sort_order: 4, caption: "url" },
     ...galleryRows,
   ].filter(Boolean);
 
@@ -112,7 +112,7 @@ async function syncRelatedTables(invitation: SavedInvitation) {
         galleryRows: galleryRows.length,
       });
     } else {
-      console.log("[syncRelatedTables] invitation_images inserted", { totalRows: imageRows.length, galleryRows: galleryRows.length });
+      console.log("[Invitation images table insert success]", { count: imageRows.length, galleryRows: galleryRows.length });
     }
   }
 
@@ -227,6 +227,8 @@ export async function uploadInvitationFileAction(formData: FormData): Promise<Up
 
   // 원본 파일명/slug 대신 UUID 기반 safe path 사용 (한글·공백·특수문자 방지)
   const path = getSafeStoragePath({ invitationId, type, imageId: id, mimeType: file.type });
+
+  console.log("[Storage upload start]", { type, path, fileType: file.type, fileSize: file.size });
 
   const { error } = await supabase.storage.from(bucket).upload(path, file, {
     cacheControl: "31536000",

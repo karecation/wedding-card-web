@@ -38,7 +38,31 @@ export default function SharedInvitationPage() {
 
       if (loaded) {
         const images = await getInvitationImagesAction(loaded.id);
+        const mainRows = images.filter((img) => (img.type === "main" || img.type === "intro") && img.url?.startsWith("https://"));
         const galleryRows = images.filter((img) => img.type === "gallery" && img.url?.startsWith("https://"));
+        const shareRows = images.filter((img) => img.type === "share" && img.url?.startsWith("https://"));
+        const photoQuoteRows = images.filter((img) => (img.type === "photo-quote" || img.type === "quote") && img.url?.startsWith("https://"));
+
+        if (mainRows.length > 0 || shareRows.length > 0 || photoQuoteRows.length > 0) {
+          const mainImage = mainRows[0]?.url;
+          const kakaoShare = shareRows.find((img) => img.caption === "kakao")?.url;
+          const urlShare = shareRows.find((img) => img.caption === "url")?.url ?? shareRows[0]?.url;
+          loaded = {
+            ...loaded,
+            coverImage: mainImage ?? loaded.coverImage,
+            introImage: mainImage ?? loaded.introImage,
+            quoteImage: photoQuoteRows[0]?.url ?? loaded.quoteImage,
+            kakaoThumbnailUrl: kakaoShare ?? loaded.kakaoThumbnailUrl,
+            urlThumbnailUrl: urlShare ?? loaded.urlThumbnailUrl,
+          };
+        }
+
+        console.log("[Preview image merge]", {
+          mainCount: mainRows.length,
+          galleryCount: galleryRows.length,
+          shareCount: shareRows.length,
+          photoQuoteCount: photoQuoteRows.length,
+        });
 
         if (galleryRows.length > 0) {
           const galleryImages: GalleryImage[] = galleryRows.map((img, index) => ({

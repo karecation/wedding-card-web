@@ -1,10 +1,20 @@
 "use client";
 
 import { create } from "zustand";
-import { emptyInvitationData, type InvitationData } from "@/types/invitation";
+import { sanitizeInvitationForStorage } from "@/lib/invitation/sanitizeInvitationForStorage";
+import { emptyInvitationData, type InvitationData, type SavedInvitation } from "@/types/invitation";
 import type { PendingUpload } from "@/lib/upload";
 
 const STORAGE_KEY = "mobile-wedding-invitation";
+
+function persistDraft(data: InvitationData) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizeInvitationForStorage(data as SavedInvitation)));
+  } catch (error) {
+    console.warn("[invitationStore] localStorage backup skipped", error instanceof Error ? error.message : error);
+  }
+}
 
 type InvitationStore = {
   invitation: InvitationData;
@@ -32,17 +42,13 @@ export const useInvitationStore = create<InvitationStore>((set, get) => ({
 
   setInvitation: (data) => {
     set({ invitation: data });
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    }
+    persistDraft(data);
   },
 
   updateField: (key, value) => {
     const next = { ...get().invitation, [key]: value };
     set({ invitation: next });
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    }
+    persistDraft(next);
   },
 
   addPendingUpload: (upload) => {

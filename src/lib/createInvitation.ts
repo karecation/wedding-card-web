@@ -1,4 +1,5 @@
 import { generateSlug } from "@/lib/generateSlug";
+import { sanitizeInvitationForStorage } from "@/lib/invitation/sanitizeInvitationForStorage";
 import type { CreateInvitationResult, InvitationData, SavedInvitation } from "@/types/invitation";
 
 const invitationCollectionKey = "mobile-wedding-invitations";
@@ -27,7 +28,7 @@ function readInvitations(): SavedInvitation[] {
 function writeInvitations(invitations: SavedInvitation[]) {
   assertBrowserStorage();
   try {
-    window.localStorage.setItem(invitationCollectionKey, JSON.stringify(invitations));
+    window.localStorage.setItem(invitationCollectionKey, JSON.stringify(invitations.map(sanitizeInvitationForStorage)));
   } catch (error) {
     console.warn("[createInvitation] writeInvitations localStorage 저장 실패:", error instanceof Error ? error.message : error);
   }

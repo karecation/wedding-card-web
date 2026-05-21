@@ -1,6 +1,6 @@
 import { uploadInvitationFileAction } from "@/app/actions/invitationActions";
 import type { PendingUpload } from "@/lib/upload";
-import type { SavedInvitation } from "@/types/invitation";
+import type { GalleryImage, SavedInvitation } from "@/types/invitation";
 
 export type UploadProgress = {
   total: number;
@@ -12,67 +12,113 @@ export type UploadInvitationImagesOptions = {
   onProgress?: (progress: UploadProgress) => void;
 };
 
+type UploadInput = PendingUpload;
+
+function countByType(uploads: UploadInput[]) {
+  return uploads.reduce<Record<string, number>>((acc, upload) => {
+    acc[upload.type] = (acc[upload.type] ?? 0) + 1;
+    return acc;
+  }, {});
+}
+
+function normalizeGalleryItems(invitation: SavedInvitation) {
+  const source = invitation.gallery?.images?.length ? invitation.gallery.images : invitation.galleryItems;
+  return (source ?? []).map((item, order) => ({ ...item, order }));
+}
+
+function cleanUploadedGalleryItems(items: GalleryImage[]) {
+  return items.map((item, order) => ({
+    ...item,
+    file: undefined,
+    dataUrl: undefined,
+    previewUrl: item.url || item.previewUrl || "",
+    order,
+  }));
+}
+
 export async function uploadInvitationImages(
   invitation: SavedInvitation,
   pendingUploads: PendingUpload[],
   options: UploadInvitationImagesOptions = {},
 ): Promise<{ invitation: SavedInvitation; failedCount: number }> {
   const { onProgress } = options;
+  const galleryItems = normalizeGalleryItems(invitation);
+  const handledIds = new Set(pendingUploads.map((upload) => upload.id));
+  const extraGalleryUploads: PendingUpload[] = galleryItems
+    .filter((image) => image.file && !handledIds.has(image.id) && !image.url?.startsWith("http"))
+    .map((image) => ({
+      id: image.id,
+      type: "gallery",
+      file: image.file!,
+      previewUrl: image.previewUrl,
+      dataUrl: image.dataUrl,
+    }));
 
-  // 갤러리: pendingUploads에 없는 File 객체를 미리 수집
-  const handledGalleryIds = new Set(pendingUploads.filter((u) => u.type === "gallery").map((u) => u.id));
-  const gallerySource = invitation.gallery?.images?.length ? invitation.gallery.images : invitation.galleryItems;
-  const extraGalleryItems = (gallerySource ?? []).filter(
-    (img) => img.file && !handledGalleryIds.has(img.id) && !img.url?.startsWith("https://"),
-  );
+  const uploads: UploadInput[] = [...pendingUploads, ...extraGalleryUploads];
+  console.log("[Image assets collected]", { total: uploads.length, byType: countByType(uploads) });
 
-  console.log("[uploadInvitationImages] 시작", {
-    invitationId: invitation.id,
-    pendingUploadsCount: pendingUploads.length,
-    pendingByType: pendingUploads.reduce<Record<string, number>>((acc, u) => {
-      acc[u.type] = (acc[u.type] ?? 0) + 1;
-      return acc;
-    }, {}),
-    extraGalleryCount: extraGalleryItems.length,
-  });
-
-  if (pendingUploads.length === 0 && extraGalleryItems.length === 0) {
-    console.log("[uploadInvitationImages] 업로드할 파일 없음 — 원본 invitation 반환");
+  if (uploads.length === 0) {
     return { invitation, failedCount: 0 };
   }
 
-  const total = pendingUploads.length + extraGalleryItems.length;
+  const total = uploads.length;
   let completed = 0;
   let failed = 0;
-
   onProgress?.({ total, completed, failed });
 
-  const settledResults = await Promise.allSettled(
-    pendingUploads.map(async (upload) => {
+  const updatedInvitation: SavedInvitation = {
+    ...invitation,
+    galleryItems,
+    gallery: {
+      ...(invitation.gallery ?? { enabled: galleryItems.length > 0, title: invitation.galleryTitle, type: "grid", showArrows: false, images: [] }),
+      images: galleryItems,
+      enabled: invitation.gallery?.enabled ?? galleryItems.length > 0,
+    },
+  };
+
+  const results = await Promise.allSettled(
+    uploads.map(async (upload) => {
+      console.log("[Storage upload start]", {
+        type: upload.type,
+        id: upload.id,
+        fileType: upload.file.type,
+        fileSize: upload.file.size,
+      });
+
       const formData = new FormData();
       formData.append("file", upload.file);
       formData.append("id", upload.id);
       formData.append("type", upload.type);
-      formData.append("invitationId", invitation.id); // UUID — slug(한글 가능)는 사용하지 않음
+      formData.append("invitationId", invitation.id);
+
       const result = await uploadInvitationFileAction(formData);
-      completed++;
-      onProgress?.({ total, completed, failed });
+      console.log("[Storage upload success]", { type: upload.type, publicUrl: result.publicUrl });
       return result;
     }),
   );
 
-  const updatedInvitation: SavedInvitation = { ...invitation };
-
-  settledResults.forEach((result, index) => {
-    const upload = pendingUploads[index];
+  results.forEach((result, index) => {
+    const upload = uploads[index];
+    completed++;
 
     if (result.status === "rejected") {
       failed++;
+      console.warn("[Storage upload failed]", {
+        type: upload.type,
+        id: upload.id,
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      });
+      onProgress?.({ total, completed, failed });
       return;
     }
 
     const publicUrl = result.value.publicUrl;
-    if (!publicUrl) return;
+    if (!publicUrl) {
+      failed++;
+      console.warn("[Storage upload failed]", { type: upload.type, id: upload.id, error: "missing publicUrl" });
+      onProgress?.({ total, completed, failed });
+      return;
+    }
 
     if (upload.type === "main") {
       updatedInvitation.coverImage = publicUrl;
@@ -88,64 +134,41 @@ export async function uploadInvitationImages(
       updatedInvitation.audioUrl = publicUrl;
       updatedInvitation.musicUrl = publicUrl;
     } else if (upload.type === "gallery") {
-      const galleryItems = updatedInvitation.galleryItems.map((item, order) =>
+      const nextItems = normalizeGalleryItems(updatedInvitation).map((item) =>
         item.id === upload.id
-          ? { ...item, url: publicUrl, previewUrl: publicUrl, dataUrl: undefined, uploadStatus: "uploaded" as const, order }
-          : { ...item, order },
+          ? {
+              ...item,
+              file: undefined,
+              url: publicUrl,
+              previewUrl: publicUrl,
+              dataUrl: undefined,
+              uploadStatus: "uploaded" as const,
+            }
+          : item,
       );
-      updatedInvitation.galleryItems = galleryItems;
-      updatedInvitation.galleryImages = galleryItems.map((item) => item.url || "").filter(Boolean);
+      updatedInvitation.galleryItems = cleanUploadedGalleryItems(nextItems);
+      updatedInvitation.galleryImages = updatedInvitation.galleryItems.map((item) => item.url || "").filter(Boolean);
       updatedInvitation.gallery = {
         ...(updatedInvitation.gallery ?? invitation.gallery),
-        enabled: galleryItems.length > 0,
-        images: galleryItems,
+        enabled: updatedInvitation.galleryItems.length > 0,
+        images: updatedInvitation.galleryItems,
       };
     }
+
+    onProgress?.({ total, completed, failed });
   });
 
-  // 갤러리: pendingUploads에 없는 File 객체 업로드
-  if (extraGalleryItems.length > 0) {
-    const extraResults = await Promise.allSettled(
-      extraGalleryItems.map(async (img) => {
-        const formData = new FormData();
-        formData.append("file", img.file!);
-        formData.append("id", img.id);
-        formData.append("type", "gallery");
-        formData.append("invitationId", invitation.id);
-        const result = await uploadInvitationFileAction(formData);
-        completed++;
-        onProgress?.({ total, completed, failed });
-        return { publicUrl: result.publicUrl, imageId: img.id };
-      }),
-    );
+  updatedInvitation.galleryItems = cleanUploadedGalleryItems(normalizeGalleryItems(updatedInvitation));
+  updatedInvitation.galleryImages = updatedInvitation.galleryItems.map((item) => item.url || "").filter(Boolean);
+  updatedInvitation.gallery = {
+    ...(updatedInvitation.gallery ?? invitation.gallery),
+    enabled: updatedInvitation.galleryItems.length > 0,
+    images: updatedInvitation.galleryItems,
+  };
 
-    const currentItems = [...(updatedInvitation.galleryItems ?? [])];
-    extraResults.forEach((result) => {
-      if (result.status === "rejected") { failed++; return; }
-      const { publicUrl, imageId } = result.value;
-      if (!publicUrl) return;
-      const idx = currentItems.findIndex((item) => item.id === imageId);
-      if (idx >= 0) {
-        currentItems[idx] = { ...currentItems[idx], url: publicUrl, previewUrl: publicUrl, dataUrl: undefined, uploadStatus: "uploaded" as const };
-      }
-    });
-
-    const finalItems = currentItems.map((item, order) => ({ ...item, order }));
-    updatedInvitation.galleryItems = finalItems;
-    updatedInvitation.galleryImages = finalItems.map((item) => item.url || "").filter(Boolean);
-    updatedInvitation.gallery = {
-      ...(updatedInvitation.gallery ?? invitation.gallery),
-      enabled: finalItems.length > 0,
-      images: finalItems,
-    };
-  }
-
-  console.log("[uploadInvitationImages] 완료", {
+  console.log("[uploadInvitationImages] complete", {
     invitationId: updatedInvitation.id,
-    coverImage: updatedInvitation.coverImage ? (updatedInvitation.coverImage.startsWith("https://") ? "https ✓" : "non-https ✗") : "없음",
-    introImage: updatedInvitation.introImage ? (updatedInvitation.introImage.startsWith("https://") ? "https ✓" : "non-https ✗") : "없음",
-    galleryItemsCount: updatedInvitation.galleryItems.length,
-    galleryHttpsCount: updatedInvitation.galleryItems.filter((img) => img.url?.startsWith("https://")).length,
+    imageCount: updatedInvitation.galleryItems.length,
     failedCount: failed,
   });
 

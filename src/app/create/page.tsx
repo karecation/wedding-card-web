@@ -81,18 +81,46 @@ function getApproxStorageSizeKb(value: unknown): number {
   }
 }
 
-// editingState→localStorage 저장용: File 객체와 blob: URL만 제거.
-// base64(dataUrl)는 Supabase 미설정 시 fallback으로 유지 (preview 화면에서 렌더링 가능)
+function safeLocalStorageSet(key: string, value: unknown): boolean {
+  try {
+    console.log("[LocalStorage save start]", { key, approximateSizeKb: getApproxStorageSizeKb(value) });
+    window.localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      console.warn("[LocalStorage quota exceeded]", { key, approximateSizeKb: getApproxStorageSizeKb(value) });
+      cleanupOldInvitationDrafts({ maxDrafts: 1 });
+      try {
+        if (key !== collectionKey) window.localStorage.removeItem(collectionKey);
+        window.localStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch {
+        console.warn("[LocalStorage backup skipped]", { key });
+        return false;
+      }
+    }
+    console.warn("[LocalStorage save failed]", { key, error });
+    return false;
+  }
+}
+
 function stripHeavyImageFields(data: InvitationData): InvitationData {
-  const cleanUrl = (url: string) => (url.startsWith("blob:") ? "" : url);
-  const cleanGalleryItem = (img: import("@/types/invitation").GalleryImage) => ({
-    ...img,
-    file: undefined, // File 객체는 JSON 직렬화 불가
-    // blob:는 제거, dataUrl(base64)/https는 유지
-    previewUrl: img.previewUrl ? cleanUrl(img.previewUrl) : "",
-    url: img.url ? cleanUrl(img.url) : undefined,
-    dataUrl: img.dataUrl, // base64 fallback 유지
-  });
+  const cleanUrl = (url: string) => (url.startsWith("http://") || url.startsWith("https://") ? url : "");
+  const cleanGalleryItem = (img: import("@/types/invitation").GalleryImage, index: number) => {
+    const url = cleanUrl(img.url || img.previewUrl || img.dataUrl || "");
+    return {
+      id: img.id || `gallery-${index}`,
+      url,
+      previewUrl: url,
+      dataUrl: undefined,
+      caption: img.caption ?? "",
+      order: index,
+      uploadStatus: url ? ("uploaded" as const) : img.uploadStatus,
+      type: "gallery" as const,
+    };
+  };
+  const gallerySource = data.gallery?.images?.length ? data.gallery.images : data.galleryItems;
+  const galleryItems = (gallerySource ?? []).map(cleanGalleryItem).filter((img) => img.url);
   return {
     ...data,
     coverImage: cleanUrl(data.coverImage),
@@ -100,10 +128,10 @@ function stripHeavyImageFields(data: InvitationData): InvitationData {
     quoteImage: cleanUrl(data.quoteImage),
     kakaoThumbnailUrl: cleanUrl(data.kakaoThumbnailUrl),
     urlThumbnailUrl: cleanUrl(data.urlThumbnailUrl),
-    galleryItems: data.galleryItems.map(cleanGalleryItem),
-    galleryImages: data.galleryImages.filter((u) => !u.startsWith("blob:")),
+    galleryItems,
+    galleryImages: galleryItems.map((img) => img.url).filter(Boolean),
     gallery: data.gallery
-      ? { ...data.gallery, images: data.gallery.images.map(cleanGalleryItem) }
+      ? { ...data.gallery, images: galleryItems, enabled: data.gallery.enabled || galleryItems.length > 0 }
       : data.gallery,
   };
 }
@@ -125,7 +153,7 @@ function cleanupOldInvitationDrafts({ maxDrafts = 3 }: { maxDrafts?: number } = 
 function saveLocalInvitation(invitation: SavedInvitation) {
   try {
     const localInvitation = sanitizeInvitationForLocalStorage(invitation);
-    window.localStorage.setItem(storageKey, JSON.stringify(localInvitation));
+    safeLocalStorageSet(storageKey, localInvitation);
 
     const raw = window.localStorage.getItem(collectionKey);
     const rawList = raw ? (JSON.parse(raw) as SavedInvitation[]) : [];
@@ -135,11 +163,7 @@ function saveLocalInvitation(invitation: SavedInvitation) {
       ...rawList.filter((item) => item.slug !== invitation.slug).map(sanitizeInvitationForLocalStorage),
     ];
 
-    console.log("[LocalStorage save start]", {
-      key: collectionKey,
-      approximateSizeKb: getApproxStorageSizeKb(sanitizedList),
-    });
-    window.localStorage.setItem(collectionKey, JSON.stringify(sanitizedList));
+    safeLocalStorageSet(collectionKey, sanitizedList);
   } catch (error) {
     if (isQuotaExceededError(error)) {
       console.warn("[LocalStorage quota exceeded]", {
@@ -152,7 +176,7 @@ function saveLocalInvitation(invitation: SavedInvitation) {
         const raw = window.localStorage.getItem(collectionKey);
         const list = raw ? (JSON.parse(raw) as Array<{ slug: string }>) : [];
         const next = [minimal, ...list.filter((item) => item.slug !== invitation.slug)];
-        window.localStorage.setItem(collectionKey, JSON.stringify(next));
+        safeLocalStorageSet(collectionKey, next);
       } catch {
         console.warn("[Local fallback skipped]", { reason: "quota exceeded even with minimal data" });
       }
@@ -168,7 +192,7 @@ function saveDraft(invitation: SavedInvitation): string {
   const lightweightDraft = sanitizeInvitationForLocalStorage(invitation);
 
   try {
-    window.localStorage.setItem(`invitation-draft-${draftId}`, JSON.stringify(lightweightDraft));
+    safeLocalStorageSet(`invitation-draft-${draftId}`, lightweightDraft);
   } catch (error) {
     if (isQuotaExceededError(error)) {
       // 용량 초과 시 이미지 필드 전부 제거 후 재시도
@@ -184,7 +208,7 @@ function saveDraft(invitation: SavedInvitation): string {
         gallery: { ...lightweightDraft.gallery, images: [], enabled: false },
       };
       try {
-        window.localStorage.setItem(`invitation-draft-${draftId}`, JSON.stringify(textOnly));
+        safeLocalStorageSet(`invitation-draft-${draftId}`, textOnly);
       } catch {
         console.warn("localStorage 용량 초과 — 미리보기 저장을 건너뜁니다.");
       }
@@ -239,7 +263,7 @@ function CreatePageContent() {
     setInvitation(nextInvitation); // React state는 blob/dataUrl 포함 (live preview용)
     try {
       // localStorage에는 base64/blob 제거 후 저장 (quota 방지)
-      window.localStorage.setItem(storageKey, JSON.stringify(stripHeavyImageFields(nextInvitation)));
+      safeLocalStorageSet(storageKey, stripHeavyImageFields(nextInvitation));
     } catch {
       // quota 초과 시 UI는 영향 없음 (React state 유지됨)
     }
@@ -274,7 +298,8 @@ function CreatePageContent() {
     });
     console.log("[Supabase env]", {
       hasUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
-      hasAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+      hasAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+      hasPublishableKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
     });
 
     if (!hasSupabaseEnv) {
@@ -319,7 +344,7 @@ function CreatePageContent() {
         galleryItemsCount: savedInvitation.galleryItems.length,
         gallerySources: savedInvitation.galleryItems.map((img) => ({
           id: img.id,
-          urlType: img.url?.startsWith("https://") ? "https" : img.url?.startsWith("data:") ? "base64" : "empty",
+          urlType: img.url?.startsWith("https://") ? "https" : img.url ? "url" : "empty",
           urlPrefix: img.url?.slice(0, 50),
         })),
       });
