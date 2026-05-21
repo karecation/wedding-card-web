@@ -103,6 +103,20 @@ async function syncRelatedTables(invitation: SavedInvitation) {
     ...galleryRows,
   ].filter(Boolean);
 
+  console.log("[Invitation images insert rows]", {
+    invitationId: invitation.id,
+    totalRows: imageRows.length,
+    galleryRows: galleryRows.length,
+    typesBreakdown: imageRows.reduce<Record<string, number>>((acc, row) => {
+      const r = row as { type?: string };
+      const t = r.type ?? "unknown";
+      acc[t] = (acc[t] ?? 0) + 1;
+      return acc;
+    }, {}),
+    galleryItemsInInvitation: invitation.galleryItems?.length ?? 0,
+    galleryItemsWithHttps: (invitation.galleryItems ?? []).filter((img) => img.url?.startsWith("https://")).length,
+  });
+
   if (imageRows.length > 0) {
     const { error: imgInsertErr } = await supabase.from("invitation_images").insert(imageRows);
     if (imgInsertErr) {
@@ -112,8 +126,16 @@ async function syncRelatedTables(invitation: SavedInvitation) {
         galleryRows: galleryRows.length,
       });
     } else {
-      console.log("[Invitation images table insert success]", { count: imageRows.length, galleryRows: galleryRows.length });
+      console.log("[Invitation images table insert success]", {
+        totalRows: imageRows.length,
+        galleryRows: galleryRows.length,
+      });
     }
+  } else {
+    console.warn("[Invitation images insert skipped]", {
+      reason: "no rows to insert — gallery URLs are not https or images are empty",
+      invitationId: invitation.id,
+    });
   }
 
   const { error: audioDeleteErr } = await supabase.from("invitation_audio").delete().eq("invitation_id", invitation.id);

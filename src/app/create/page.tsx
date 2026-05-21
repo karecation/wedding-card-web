@@ -340,6 +340,21 @@ function CreatePageContent() {
       );
     }
 
+    console.log("[Before save gallery payload]", {
+      galleryEnabled: invitation.gallery?.enabled,
+      galleryImagesCount: invitation.gallery?.images?.length ?? 0,
+      galleryItemsCount: invitation.galleryItems?.length ?? 0,
+      withFileInImages: (invitation.gallery?.images ?? []).filter((i) => i.file).length,
+      withFileInItems: (invitation.galleryItems ?? []).filter((i) => i.file).length,
+      pendingGalleryCount: pendingUploads.filter((u) => u.type === "gallery").length,
+      galleryImagesSample: (invitation.gallery?.images ?? []).slice(0, 3).map((img) => ({
+        id: img.id,
+        hasFile: Boolean(img.file),
+        urlPrefix: (img.url || "").slice(0, 50),
+        previewUrlPrefix: (img.previewUrl || "").slice(0, 50),
+      })),
+    });
+
     try {
       if (pendingUploads.length > 0 || invitation.galleryItems.some((i) => i.file)) {
         setStatusMessage(`이미지 업로드 중 (0 / ${pendingUploads.length})`);

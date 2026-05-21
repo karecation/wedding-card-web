@@ -55,9 +55,28 @@ export async function uploadInvitationImages(
     }));
 
   const uploads: UploadInput[] = [...pendingUploads, ...extraGalleryUploads];
+
+  console.log("[Upload gallery input]", {
+    invitationId: invitation.id,
+    galleryEnabled: invitation.gallery?.enabled,
+    galleryImagesCount: invitation.gallery?.images?.length ?? 0,
+    galleryItemsCount: invitation.galleryItems?.length ?? 0,
+    galleryItemsNormalized: galleryItems.length,
+    galleryItemsWithFile: galleryItems.filter((img) => img.file).length,
+    galleryItemsWithHttps: galleryItems.filter((img) => img.url?.startsWith("http")).length,
+    pendingGalleryCount: pendingUploads.filter((u) => u.type === "gallery").length,
+    extraGalleryCount: extraGalleryUploads.length,
+    extraGalleryIds: extraGalleryUploads.map((u) => u.id),
+  });
+
   console.log("[Image assets collected]", { total: uploads.length, byType: countByType(uploads) });
 
   if (uploads.length === 0) {
+    console.warn("[uploadInvitationImages] no uploads — pendingUploads empty and no gallery items have files", {
+      invitationId: invitation.id,
+      galleryItemsCount: galleryItems.length,
+      gallerySource: invitation.gallery?.images?.length ? "gallery.images" : "galleryItems",
+    });
     return { invitation, failedCount: 0 };
   }
 

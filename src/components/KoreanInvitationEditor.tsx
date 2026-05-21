@@ -272,6 +272,16 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
     const explicitlyEnabled = extra?.menuOrder?.find((item) => item.id === "gallery")?.enabled;
     const nextEnabled = explicitlyEnabled ?? (galleryEnabled || orderedImages.length > 0);
 
+    console.log("[Gallery state updated]", {
+      enabled: nextEnabled,
+      imagesCount: orderedImages.length,
+      itemsCount: orderedImages.length,
+      withFile: orderedImages.filter((img) => img.file).length,
+      withUrl: orderedImages.filter((img) => img.url?.startsWith("https://")).length,
+      withPreview: orderedImages.filter((img) => img.previewUrl).length,
+      ids: orderedImages.map((img) => img.id),
+    });
+
     patch({
       ...extra,
       galleryTitle: nextGalleryTitle,
@@ -299,42 +309,65 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
       .filter((file) => (type === "audio" ? true : file.type.startsWith("image/")))
       .slice(0, type === "gallery" ? Math.max(0, 60 - galleryImages.length) : 1);
 
+    if (type === "gallery") {
+      console.log("[Gallery file selected]", {
+        fileCount: incomingFiles.length,
+        files: incomingFiles.map((file) => ({ name: file.name, type: file.type, size: file.size })),
+        currentGalleryCount: galleryImages.length,
+        remainingSlots: 60 - galleryImages.length,
+      });
+    }
+
     const nextGalleryItems: GalleryImage[] = [];
 
     for (const file of incomingFiles) {
       const error = validateUploadFile(file, type);
       if (error) {
+        console.warn("[Gallery file rejected]", { name: file.name, type: file.type, size: file.size, reason: error });
         setUploadError(error);
         continue;
       }
 
-      const id = createClientId(type);
-      const preview = type === "audio" ? { previewUrl: URL.createObjectURL(file), dataUrl: "" } : await makeImagePreviews(file);
-      const { previewUrl, dataUrl } = preview;
-      onPendingUpload?.({ id, type, file, previewUrl, dataUrl });
+      try {
+        const id = createClientId(type);
+        const preview = type === "audio" ? { previewUrl: URL.createObjectURL(file), dataUrl: "" } : await makeImagePreviews(file);
+        const { previewUrl, dataUrl } = preview;
+        onPendingUpload?.({ id, type, file, previewUrl, dataUrl });
 
-      if (type === "main") update("coverImage", previewUrl);
-      if (type === "intro") update("introImage", previewUrl);
-      if (type === "quote") update("quoteImage", previewUrl);
-      if (type === "kakao_thumbnail") update("kakaoThumbnailUrl", previewUrl);
-      if (type === "url_thumbnail") update("urlThumbnailUrl", previewUrl);
-      if (type === "audio") patch({ audioUrl: previewUrl, musicUrl: previewUrl, audioTitle: file.name });
-      if (type === "gallery") {
-        nextGalleryItems.push({
-          id,
-          file,
-          url: "",
-          previewUrl,
-          dataUrl,
-          caption: "",
-          order: galleryImages.length + nextGalleryItems.length,
-          type: "gallery",
+        if (type === "main") update("coverImage", previewUrl);
+        if (type === "intro") update("introImage", previewUrl);
+        if (type === "quote") update("quoteImage", previewUrl);
+        if (type === "kakao_thumbnail") update("kakaoThumbnailUrl", previewUrl);
+        if (type === "url_thumbnail") update("urlThumbnailUrl", previewUrl);
+        if (type === "audio") patch({ audioUrl: previewUrl, musicUrl: previewUrl, audioTitle: file.name });
+        if (type === "gallery") {
+          nextGalleryItems.push({
+            id,
+            file,
+            url: "",
+            previewUrl,
+            dataUrl,
+            caption: "",
+            order: galleryImages.length + nextGalleryItems.length,
+            type: "gallery",
+          });
+          console.log("[Gallery item pushed]", { id, name: file.name, hasDataUrl: Boolean(dataUrl), hasPreviewUrl: Boolean(previewUrl) });
+        }
+      } catch (err) {
+        console.error("[Gallery file processing failed]", {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          error: err instanceof Error ? err.message : String(err),
         });
+        setUploadError(`${file.name} 처리에 실패했습니다. 다른 형식의 사진을 사용해 주세요.`);
       }
     }
 
     if (type === "gallery" && nextGalleryItems.length > 0) {
       syncGallery([...galleryImages, ...nextGalleryItems].slice(0, 60));
+    } else if (type === "gallery") {
+      console.warn("[Gallery sync skipped]", { reason: "no items processed", incomingCount: incomingFiles.length });
     }
   };
 
