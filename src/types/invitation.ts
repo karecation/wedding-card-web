@@ -7,8 +7,14 @@ export type ImageUploadType =
   | "intro"
   | "gallery"
   | "quote"
+  | "photoQuote"
+  | "photo-quote"
   | "kakao_thumbnail"
-  | "url_thumbnail";
+  | "kakaoThumbnail"
+  | "url_thumbnail"
+  | "urlThumbnail"
+  | "shareThumbnail"
+  | "share";
 
 export type ImageAsset = {
   id?: string;

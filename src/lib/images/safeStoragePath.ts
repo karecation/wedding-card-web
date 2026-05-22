@@ -19,8 +19,14 @@ const TYPE_TO_SECTION: Record<string, string> = {
   intro: "main",
   gallery: "gallery",
   quote: "photo-quote",
+  photoQuote: "photo-quote",
+  "photo-quote": "photo-quote",
   kakao_thumbnail: "share",
+  kakaoThumbnail: "share",
   url_thumbnail: "share",
+  urlThumbnail: "share",
+  shareThumbnail: "share",
+  share: "share",
   audio: "audio",
 };
 

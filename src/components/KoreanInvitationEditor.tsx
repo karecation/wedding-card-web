@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { extractYouTubeVideoId } from "@/lib/youtube";
-import { resizeImageToDataUrl } from "@/lib/images/resizeImage";
 import { validateUploadFile, type PendingUpload } from "@/lib/upload";
 import type {
   BankAccountItem,
@@ -162,45 +161,69 @@ function UploadBox({
   imageUrl: string;
   type: ImageUploadType | "audio";
   label?: string;
-  onSelect: (type: ImageUploadType | "audio", files: FileList) => void;
+  onSelect: (type: ImageUploadType | "audio", files: FileList | File[]) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const isGallery = type === "gallery";
+  const openFileDialog = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    console.log("[Image upload button clicked]", {
+      field: type,
+      multiple: isGallery,
+      hasInputRef: Boolean(inputRef.current),
+    });
+    inputRef.current?.click();
+  };
 
   return (
-    <label
+    <div
       className={`grid min-h-[146px] w-full max-w-[320px] cursor-pointer place-items-center overflow-hidden rounded-[6px] border border-dashed bg-[#f8f8f8] px-4 py-4 text-center text-[12px] transition ${isDragging ? "border-[#222] bg-white" : "border-[#dedede] text-[#f06f52] hover:border-[#c9c9c9]"}`}
       onDragOver={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         setIsDragging(true);
       }}
-      onDragLeave={() => setIsDragging(false)}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragging(false);
+      }}
       onDrop={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         setIsDragging(false);
         if (event.dataTransfer.files?.length) onSelect(type, event.dataTransfer.files);
       }}
     >
-      {imageUrl && type !== "audio" ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="" className="h-full max-h-[180px] w-full rounded-[4px] object-cover" />
-      ) : (
-        <span className="space-y-1 leading-5">
-          <span className="block font-semibold text-[#f06f52]">{isGallery ? "사진을 클릭하거나 여기로 끌어다 놓으세요" : label}</span>
-          {isGallery && <span className="block text-[11px] text-[#999]">여러 장을 한 번에 추가할 수 있습니다.</span>}
-        </span>
-      )}
+      <button type="button" onClick={openFileDialog} className="grid h-full min-h-[118px] w-full cursor-pointer place-items-center text-center">
+        {imageUrl && type !== "audio" ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt="" className="h-full max-h-[180px] w-full rounded-[4px] object-cover" />
+        ) : (
+          <span className="space-y-1 leading-5">
+            <span className="block font-semibold text-[#f06f52]">{isGallery ? "사진을 클릭하거나 여기로 끌어다 놓으세요" : label}</span>
+            {isGallery && <span className="block text-[11px] text-[#999]">여러 장을 한 번에 추가할 수 있습니다.</span>}
+          </span>
+        )}
+      </button>
       <input
+        ref={inputRef}
         type="file"
         accept={type === "audio" ? "audio/mpeg,.mp3" : "image/*"}
         multiple={isGallery}
-        className="sr-only"
+        hidden
         onChange={(event) => {
+          console.log("[Image input changed]", {
+            field: type,
+            fileCount: event.target.files?.length ?? 0,
+          });
           if (event.target.files) onSelect(type, event.target.files);
           event.target.value = "";
         }}
       />
-    </label>
+    </div>
   );
 }
 
@@ -210,8 +233,7 @@ function Help({ children }: { children: React.ReactNode }) {
 
 async function makeImagePreviews(file: File) {
   const previewUrl = URL.createObjectURL(file);
-  const dataUrl = await resizeImageToDataUrl(file);
-  return { previewUrl, dataUrl };
+  return { previewUrl, dataUrl: undefined };
 }
 
 function createClientId(prefix: string) {
@@ -302,21 +324,20 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
     });
   };
 
-  const selectFiles = async (type: ImageUploadType | "audio", files: FileList) => {
+  const selectFiles = async (type: ImageUploadType | "audio", files: FileList | File[]) => {
     setUploadError("");
 
     const incomingFiles = Array.from(files)
       .filter((file) => (type === "audio" ? true : file.type.startsWith("image/")))
       .slice(0, type === "gallery" ? Math.max(0, 60 - galleryImages.length) : 1);
 
-    if (type === "gallery") {
-      console.log("[Gallery file selected]", {
-        fileCount: incomingFiles.length,
-        files: incomingFiles.map((file) => ({ name: file.name, type: file.type, size: file.size })),
-        currentGalleryCount: galleryImages.length,
-        remainingSlots: 60 - galleryImages.length,
-      });
-    }
+    console.log("[Image file selected]", {
+      type,
+      fileCount: incomingFiles.length,
+      files: incomingFiles.map((file) => ({ name: file.name, type: file.type, size: file.size })),
+      currentGalleryCount: galleryImages.length,
+      remainingSlots: type === "gallery" ? 60 - galleryImages.length : undefined,
+    });
 
     const nextGalleryItems: GalleryImage[] = [];
 
@@ -333,12 +354,13 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         const preview = type === "audio" ? { previewUrl: URL.createObjectURL(file), dataUrl: "" } : await makeImagePreviews(file);
         const { previewUrl, dataUrl } = preview;
         onPendingUpload?.({ id, type, file, previewUrl, dataUrl });
+        console.log("[Pending upload registered]", { id, type, fileType: file.type, fileSize: file.size, hasPreviewUrl: Boolean(previewUrl) });
 
         if (type === "main") update("coverImage", previewUrl);
         if (type === "intro") update("introImage", previewUrl);
-        if (type === "quote") update("quoteImage", previewUrl);
-        if (type === "kakao_thumbnail") update("kakaoThumbnailUrl", previewUrl);
-        if (type === "url_thumbnail") update("urlThumbnailUrl", previewUrl);
+        if (type === "quote" || type === "photoQuote" || type === "photo-quote") update("quoteImage", previewUrl);
+        if (type === "kakao_thumbnail" || type === "kakaoThumbnail") update("kakaoThumbnailUrl", previewUrl);
+        if (type === "url_thumbnail" || type === "urlThumbnail" || type === "shareThumbnail" || type === "share") update("urlThumbnailUrl", previewUrl);
         if (type === "audio") patch({ audioUrl: previewUrl, musicUrl: previewUrl, audioTitle: file.name });
         if (type === "gallery") {
           nextGalleryItems.push({
@@ -434,7 +456,15 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
   const youtubePreviewId = useMemo(() => extractYouTubeVideoId(data.youtubeUrl), [data.youtubeUrl]);
 
   return (
-    <div className="space-y-4">
+    <div
+      className="space-y-4"
+      onDragOver={(event) => {
+        if (Array.from(event.dataTransfer.types).includes("Files")) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        if (event.dataTransfer.files?.length) event.preventDefault();
+      }}
+    >
       {uploadError && <div className="border border-[#f4c7bd] bg-[#fff5f2] px-4 py-3 text-[12px] text-[#d8563d]">{uploadError}</div>}
 
       <Section title="테마" {...sectionProps("theme")}>

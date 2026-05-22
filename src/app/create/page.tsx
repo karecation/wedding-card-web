@@ -319,6 +319,14 @@ function CreatePageContent() {
   };
 
   const handlePendingUpload = (upload: PendingUpload) => {
+    console.log("[Pending upload queued]", {
+      id: upload.id,
+      type: upload.type,
+      fileType: upload.file.type,
+      fileSize: upload.file.size,
+      hasPreviewUrl: Boolean(upload.previewUrl),
+      hasDataUrl: Boolean(upload.dataUrl),
+    });
     setPendingUploads((current) => [...current.filter((item) => item.id !== upload.id), upload]);
   };
 
@@ -370,6 +378,20 @@ function CreatePageContent() {
         urlPrefix: (img.url || "").slice(0, 50),
         previewUrlPrefix: (img.previewUrl || "").slice(0, 50),
       })),
+    });
+
+    console.log("[Before save image payload]", {
+      pendingUploadsCount: pendingUploads.length,
+      pendingUploadsTypes: pendingUploads.map((item) => item.type),
+      galleryImagesCount: invitation.gallery?.images?.length ?? 0,
+      galleryItemsCount: invitation.galleryItems?.length ?? 0,
+      galleryWithFile: [
+        ...(invitation.gallery?.images ?? []),
+        ...(invitation.galleryItems ?? []),
+      ].filter((img, index, source) => img.file && source.findIndex((item) => item.id === img.id) === index).length,
+      quoteHasImage: Boolean(invitation.quoteImage),
+      kakaoThumbnail: invitation.kakaoThumbnailUrl,
+      urlThumbnail: invitation.urlThumbnailUrl,
     });
 
     try {
@@ -462,7 +484,15 @@ function CreatePageContent() {
   };
 
   return (
-    <main className="create-page bg-[#fafafa] text-[#111]">
+    <main
+      className="create-page bg-[#fafafa] text-[#111]"
+      onDragOver={(event) => {
+        if (Array.from(event.dataTransfer.types).includes("Files")) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        if (event.dataTransfer.files?.length) event.preventDefault();
+      }}
+    >
       <header className="create-header">
         <div className="mx-auto flex h-full w-full max-w-[1080px] items-center justify-between px-4">
           <div className="flex min-w-0 items-center gap-7">

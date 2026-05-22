@@ -1,6 +1,7 @@
 "use server";
 
 import { getSafeStoragePath } from "@/lib/images/safeStoragePath";
+import { normalizeUploadType } from "@/lib/images/uploadType";
 import { createSupabaseAdminClient, hasSupabaseServerConfig } from "@/lib/supabase/server";
 import type { UploadResult } from "@/lib/upload";
 import type { InvitationData, SavedInvitation } from "@/types/invitation";
@@ -229,7 +230,8 @@ export async function uploadInvitationFileAction(formData: FormData): Promise<Up
   const file = formData.get("file");
   const id = String(formData.get("id") ?? "");
   const invitationId = String(formData.get("invitationId") ?? "");
-  const type = String(formData.get("type") ?? "") as UploadResult["type"];
+  const rawType = String(formData.get("type") ?? "");
+  const type = normalizeUploadType(rawType) as UploadResult["type"];
 
   if (!(file instanceof File)) {
     throw new Error("업로드할 파일이 없습니다.");
@@ -240,7 +242,7 @@ export async function uploadInvitationFileAction(formData: FormData): Promise<Up
   }
 
   if (!hasSupabaseServerConfig()) {
-    console.warn("[uploadInvitationFileAction] Supabase 미설정 — base64 fallback 사용", { id, type, fileName: file.name });
+    console.warn("[uploadInvitationFileAction] Supabase 미설정 — base64 fallback 사용", { id, rawType, type, fileName: file.name });
     return { id, type, publicUrl: "" };
   }
 
@@ -250,7 +252,7 @@ export async function uploadInvitationFileAction(formData: FormData): Promise<Up
   // 원본 파일명/slug 대신 UUID 기반 safe path 사용 (한글·공백·특수문자 방지)
   const path = getSafeStoragePath({ invitationId, type, imageId: id, mimeType: file.type });
 
-  console.log("[Storage upload start]", { type, path, fileType: file.type, fileSize: file.size });
+  console.log("[Storage upload start]", { rawType, type, path, fileType: file.type, fileSize: file.size });
 
   const { error } = await supabase.storage.from(bucket).upload(path, file, {
     cacheControl: "31536000",

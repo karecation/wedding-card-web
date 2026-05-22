@@ -1,4 +1,5 @@
 import { uploadInvitationFileAction } from "@/app/actions/invitationActions";
+import { normalizeUploadType } from "@/lib/images/uploadType";
 import type { PendingUpload } from "@/lib/upload";
 import type { GalleryImage, SavedInvitation } from "@/types/invitation";
 
@@ -16,7 +17,8 @@ type UploadInput = PendingUpload;
 
 function countByType(uploads: UploadInput[]) {
   return uploads.reduce<Record<string, number>>((acc, upload) => {
-    acc[upload.type] = (acc[upload.type] ?? 0) + 1;
+    const type = normalizeUploadType(upload.type);
+    acc[type] = (acc[type] ?? 0) + 1;
     return acc;
   }, {});
 }
@@ -64,7 +66,7 @@ export async function uploadInvitationImages(
     galleryItemsNormalized: galleryItems.length,
     galleryItemsWithFile: galleryItems.filter((img) => img.file).length,
     galleryItemsWithHttps: galleryItems.filter((img) => img.url?.startsWith("http")).length,
-    pendingGalleryCount: pendingUploads.filter((u) => u.type === "gallery").length,
+    pendingGalleryCount: pendingUploads.filter((u) => normalizeUploadType(u.type) === "gallery").length,
     extraGalleryCount: extraGalleryUploads.length,
     extraGalleryIds: extraGalleryUploads.map((u) => u.id),
   });
@@ -97,8 +99,10 @@ export async function uploadInvitationImages(
 
   const results = await Promise.allSettled(
     uploads.map(async (upload) => {
+      const uploadType = normalizeUploadType(upload.type);
       console.log("[Storage upload start]", {
-        type: upload.type,
+        rawType: upload.type,
+        type: uploadType,
         id: upload.id,
         fileType: upload.file.type,
         fileSize: upload.file.size,
@@ -107,23 +111,25 @@ export async function uploadInvitationImages(
       const formData = new FormData();
       formData.append("file", upload.file);
       formData.append("id", upload.id);
-      formData.append("type", upload.type);
+      formData.append("type", uploadType);
       formData.append("invitationId", invitation.id);
 
       const result = await uploadInvitationFileAction(formData);
-      console.log("[Storage upload success]", { type: upload.type, publicUrl: result.publicUrl });
+      console.log("[Storage upload success]", { rawType: upload.type, type: uploadType, publicUrl: result.publicUrl });
       return result;
     }),
   );
 
   results.forEach((result, index) => {
     const upload = uploads[index];
+    const uploadType = normalizeUploadType(upload.type);
     completed++;
 
     if (result.status === "rejected") {
       failed++;
       console.warn("[Storage upload failed]", {
-        type: upload.type,
+        rawType: upload.type,
+        type: uploadType,
         id: upload.id,
         error: result.reason instanceof Error ? result.reason.message : String(result.reason),
       });
@@ -134,25 +140,25 @@ export async function uploadInvitationImages(
     const publicUrl = result.value.publicUrl;
     if (!publicUrl) {
       failed++;
-      console.warn("[Storage upload failed]", { type: upload.type, id: upload.id, error: "missing publicUrl" });
+      console.warn("[Storage upload failed]", { rawType: upload.type, type: uploadType, id: upload.id, error: "missing publicUrl" });
       onProgress?.({ total, completed, failed });
       return;
     }
 
-    if (upload.type === "main") {
+    if (uploadType === "main") {
       updatedInvitation.coverImage = publicUrl;
-    } else if (upload.type === "intro") {
+    } else if (uploadType === "intro") {
       updatedInvitation.introImage = publicUrl;
-    } else if (upload.type === "quote") {
+    } else if (uploadType === "quote") {
       updatedInvitation.quoteImage = publicUrl;
-    } else if (upload.type === "kakao_thumbnail") {
+    } else if (uploadType === "kakao_thumbnail") {
       updatedInvitation.kakaoThumbnailUrl = publicUrl;
-    } else if (upload.type === "url_thumbnail") {
+    } else if (uploadType === "url_thumbnail") {
       updatedInvitation.urlThumbnailUrl = publicUrl;
-    } else if (upload.type === "audio") {
+    } else if (uploadType === "audio") {
       updatedInvitation.audioUrl = publicUrl;
       updatedInvitation.musicUrl = publicUrl;
-    } else if (upload.type === "gallery") {
+    } else if (uploadType === "gallery") {
       const nextItems = normalizeGalleryItems(updatedInvitation).map((item) =>
         item.id === upload.id
           ? {
