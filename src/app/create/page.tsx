@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getInvitationBySlugAction, saveInvitationAction } from "@/app/actions/invitationActions";
 import KoreanInvitationEditor from "@/components/KoreanInvitationEditor";
 import KoreanInvitationPreview from "@/components/KoreanInvitationPreview";
+import PreviewErrorBoundary from "@/components/invitation/PreviewErrorBoundary";
 import { generateSlug } from "@/lib/generateSlug";
 import { uploadInvitationImages } from "@/lib/images/uploadInvitationImages";
 import { sanitizeInvitationForStorage } from "@/lib/invitation/sanitizeInvitationForStorage";
@@ -105,35 +106,51 @@ function safeLocalStorageSet(key: string, value: unknown): boolean {
 }
 
 function stripHeavyImageFields(data: InvitationData): InvitationData {
-  const cleanUrl = (url: string) => (url.startsWith("http://") || url.startsWith("https://") ? url : "");
-  const cleanGalleryItem = (img: import("@/types/invitation").GalleryImage, index: number) => {
-    const url = cleanUrl(img.url || img.previewUrl || img.dataUrl || "");
-    return {
-      id: img.id || `gallery-${index}`,
-      url,
-      previewUrl: url,
-      dataUrl: undefined,
-      caption: img.caption ?? "",
-      order: index,
-      uploadStatus: url ? ("uploaded" as const) : img.uploadStatus,
-      type: "gallery" as const,
+  try {
+    const cleanUrl = (url?: string) => (url && (url.startsWith("http://") || url.startsWith("https://")) ? url : "");
+    const cleanGalleryItem = (img: import("@/types/invitation").GalleryImage, index: number) => {
+      const url = cleanUrl(img.url || img.previewUrl || img.dataUrl || "");
+      return {
+        id: img.id || `gallery-${index}`,
+        url,
+        previewUrl: url,
+        dataUrl: undefined,
+        caption: img.caption ?? "",
+        order: index,
+        uploadStatus: url ? ("uploaded" as const) : img.uploadStatus,
+        type: "gallery" as const,
+      };
     };
-  };
-  const gallerySource = data.gallery?.images?.length ? data.gallery.images : data.galleryItems;
-  const galleryItems = (gallerySource ?? []).map(cleanGalleryItem).filter((img) => img.url);
-  return {
-    ...data,
-    coverImage: cleanUrl(data.coverImage),
-    introImage: cleanUrl(data.introImage),
-    quoteImage: cleanUrl(data.quoteImage),
-    kakaoThumbnailUrl: cleanUrl(data.kakaoThumbnailUrl),
-    urlThumbnailUrl: cleanUrl(data.urlThumbnailUrl),
-    galleryItems,
-    galleryImages: galleryItems.map((img) => img.url).filter(Boolean),
-    gallery: data.gallery
-      ? { ...data.gallery, images: galleryItems, enabled: data.gallery.enabled || galleryItems.length > 0 }
-      : data.gallery,
-  };
+    const gallerySource = data.gallery?.images?.length ? data.gallery.images : data.galleryItems;
+    const galleryItems = (gallerySource ?? []).map(cleanGalleryItem).filter((img) => img.url);
+    return {
+      ...data,
+      coverImage: cleanUrl(data.coverImage),
+      introImage: cleanUrl(data.introImage),
+      quoteImage: cleanUrl(data.quoteImage),
+      kakaoThumbnailUrl: cleanUrl(data.kakaoThumbnailUrl),
+      urlThumbnailUrl: cleanUrl(data.urlThumbnailUrl),
+      galleryItems,
+      galleryImages: galleryItems.map((img) => img.url).filter(Boolean),
+      gallery: data.gallery
+        ? { ...data.gallery, images: galleryItems, enabled: data.gallery.enabled || galleryItems.length > 0 }
+        : data.gallery,
+    };
+  } catch (error) {
+    console.error("[stripHeavyImageFields] 처리 실패 — 원본 메타만 저장", error);
+    // 최후 fallback: 갤러리/이미지 전부 비운 안전한 객체 반환
+    return {
+      ...data,
+      coverImage: "",
+      introImage: "",
+      quoteImage: "",
+      kakaoThumbnailUrl: "",
+      urlThumbnailUrl: "",
+      galleryItems: [],
+      galleryImages: [],
+      gallery: data.gallery ? { ...data.gallery, images: [], enabled: false } : data.gallery,
+    };
+  }
 }
 
 function cleanupOldInvitationDrafts({ maxDrafts = 3 }: { maxDrafts?: number } = {}) {
@@ -485,7 +502,9 @@ function CreatePageContent() {
 
       <div className="create-main mx-auto w-full max-w-[1080px] px-4 py-4">
         <aside className="preview-panel">
-          <KoreanInvitationPreview data={invitation} />
+          <PreviewErrorBoundary label="create-preview">
+            <KoreanInvitationPreview data={invitation} />
+          </PreviewErrorBoundary>
         </aside>
 
         <section className="editor-panel">

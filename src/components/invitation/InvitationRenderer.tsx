@@ -9,6 +9,7 @@ import IntroSection from "@/components/invitation/IntroSection";
 import LocationSection from "@/components/invitation/LocationSection";
 import RsvpSection from "@/components/invitation/RsvpSection";
 import ShareFooter from "@/components/invitation/ShareFooter";
+import { getPhotoQuoteSrc } from "@/lib/invitation/getImageSrc";
 import { normalizeInvitation, type NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
 import type { MenuSectionId } from "@/types/invitation";
 
@@ -62,14 +63,25 @@ function VideoSection({ invitation }: { invitation: NormalizedInvitation }) {
 }
 
 function QuoteSection({ invitation }: { invitation: NormalizedInvitation }) {
-  if (!invitation.quote.enabled || (!invitation.quote.imageUrl && !invitation.quote.text)) return null;
+  const src = getPhotoQuoteSrc(invitation);
+  if (!invitation.quote.enabled || (!src && !invitation.quote.text)) return null;
   return (
     <section className="px-7 py-12 text-center">
-      {invitation.quote.imageUrl && (
+      {src && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={invitation.quote.imageUrl} alt="사진과 글귀" loading="lazy" className="mx-auto max-h-[360px] w-full rounded-[14px] object-cover" />
+        <img
+          src={src}
+          alt="사진과 글귀"
+          loading="lazy"
+          className="mx-auto max-h-[360px] w-full rounded-[14px] object-cover"
+          onError={() => console.error("[QuoteSection image failed]", { src: src.slice(0, 80) })}
+        />
       )}
-      {invitation.quote.text && <p className="mx-auto mt-6 max-w-[300px] whitespace-pre-line text-[14px] leading-[2] text-[var(--invite-muted)]">{invitation.quote.text}</p>}
+      {invitation.quote.text && (
+        <p className="mx-auto mt-6 max-w-[300px] whitespace-pre-line text-[14px] leading-[2] text-[var(--invite-muted)]">
+          {invitation.quote.text}
+        </p>
+      )}
     </section>
   );
 }
