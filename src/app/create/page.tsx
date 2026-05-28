@@ -30,13 +30,42 @@ function hasOptionalContent(data: InvitationData, id: string) {
   return true;
 }
 
-function prepareInitialInvitation(data: InvitationData): InvitationData {
+function nonEmpty(value: string | undefined) {
+  return typeof value === "string" && value.trim() ? value : "";
+}
+
+function normalizeLocationFields(data: InvitationData): InvitationData {
+  const firstTransport = data.transports[0];
+  const location = {
+    venueName: nonEmpty(data.location?.venueName) || data.venueName,
+    hallName: nonEmpty(data.location?.hallName) || data.venueHall,
+    address: nonEmpty(data.location?.address) || data.venueAddress,
+    detailAddress: data.location?.detailAddress || "",
+    lat: data.location?.lat ?? data.latitude ?? undefined,
+    lng: data.location?.lng ?? data.longitude ?? undefined,
+    transportTitle: nonEmpty(data.location?.transportTitle) || firstTransport?.title || "",
+    transportDescription: nonEmpty(data.location?.transportDescription) || firstTransport?.description || "",
+  };
+
   return {
     ...data,
-    gallery: data.gallery ?? emptyInvitationData.gallery,
-    menuOrder: data.menuOrder.map((item) => ({
+    venueName: location.venueName,
+    venueHall: location.hallName,
+    venueAddress: location.address,
+    latitude: location.lat ?? null,
+    longitude: location.lng ?? null,
+    location,
+  };
+}
+
+function prepareInitialInvitation(data: InvitationData): InvitationData {
+  const nextData = normalizeLocationFields(data);
+  return {
+    ...nextData,
+    gallery: nextData.gallery ?? emptyInvitationData.gallery,
+    menuOrder: nextData.menuOrder.map((item) => ({
       ...item,
-      enabled: item.enabled && hasOptionalContent(data, item.id),
+      enabled: item.enabled && hasOptionalContent(nextData, item.id),
     })),
   };
 }
@@ -335,7 +364,7 @@ function CreatePageContent() {
     setIsSaving(true);
     setStatusMessage("저장 중입니다...");
 
-    let savedInvitation = createSavedInvitation(invitation);
+    let savedInvitation = createSavedInvitation(normalizeLocationFields(invitation));
 
     const hasSupabaseEnv = Boolean(
       process.env.NEXT_PUBLIC_SUPABASE_URL &&

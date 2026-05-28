@@ -1,5 +1,6 @@
 "use client";
 
+import KakaoMap from "@/components/invitation/KakaoMap";
 import type { NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
 
 function mapLink(provider: "naver" | "kakao" | "tmap", venueName: string, address: string) {
@@ -12,9 +13,16 @@ function mapLink(provider: "naver" | "kakao" | "tmap", venueName: string, addres
 export default function LocationSection({ invitation }: { invitation: NormalizedInvitation }) {
   if (!invitation.location.enabled) return null;
 
-  const venue = [invitation.location.venueName, invitation.location.hall].filter(Boolean).join(" ");
-  const hasCoords = typeof invitation.location.lat === "number" && typeof invitation.location.lng === "number";
+  const venue = [invitation.location.venueName, invitation.location.hallName || invitation.location.hall].filter(Boolean).join(" ");
   const visibleTransport = invitation.location.transportations.filter((item) => item.title || item.body);
+
+  console.log("[LocationSection data]", {
+    venueName: invitation.location.venueName,
+    hallName: invitation.location.hallName || invitation.location.hall,
+    address: invitation.location.address,
+    lat: invitation.location.lat,
+    lng: invitation.location.lng,
+  });
 
   return (
     <section className="px-7 py-12">
@@ -31,21 +39,13 @@ export default function LocationSection({ invitation }: { invitation: Normalized
 
       {invitation.location.showMap && (
         <div className="mt-6 overflow-hidden rounded-[12px] border border-[var(--invite-border)] bg-[#f1eee9]">
-          <div className="grid h-[190px] place-items-center px-6 text-center text-[12px] leading-6 text-[#9d8a80]">
-            {hasCoords ? (
-              <span>
-                지도 좌표가 저장되었습니다.
-                <br />
-                {invitation.location.lat}, {invitation.location.lng}
-              </span>
-            ) : (
-              <span>
-                지도 API 키 또는 좌표가 없으면
-                <br />
-                이 안내 영역으로 표시됩니다.
-              </span>
-            )}
-          </div>
+          <KakaoMap
+            venueName={invitation.location.venueName}
+            address={invitation.location.address}
+            lat={invitation.location.lat}
+            lng={invitation.location.lng}
+            height={260}
+          />
         </div>
       )}
 

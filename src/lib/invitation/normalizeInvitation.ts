@@ -54,6 +54,7 @@ export type NormalizedInvitation = {
     enabled: boolean;
     title: string;
     venueName: string;
+    hallName?: string;
     hall?: string;
     address: string;
     lat?: number;
@@ -339,6 +340,7 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
   const bride = asRecord(row.bride);
   const greeting = asRecord(row.greeting);
   const venue = asRecord(row.venue);
+  const location = asRecord(merged.location);
 
   const menu = Array.isArray(merged.menuOrder) ? (merged.menuOrder as MenuOrderItem[]) : defaultMenuOrder;
   const groomName =
@@ -353,9 +355,30 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
     emptyInvitationData.brideName;
   const period = koPeriodMap[merged.weddingPeriod] ?? merged.weddingPeriod ?? "오후";
   const time = asString(row.wedding_time) || asString(merged.weddingTime) || `${period} ${merged.weddingHour} ${merged.weddingMinute}`;
-  const venueName = asString(merged.venueName) || asString(venue.name) || emptyInvitationData.venueName;
-  const venueHall = asString(merged.venueHall) || asString(venue.hall);
-  const venueAddress = asString(merged.venueAddress) || asString(venue.address);
+  const venueName =
+    asString(location.venueName) ||
+    asString(location.venue) ||
+    asString(location.locationName) ||
+    asString(merged.venueName) ||
+    asString(venue.name) ||
+    emptyInvitationData.venueName;
+  const venueHall = asString(location.hallName) || asString(location.hall) || asString(merged.venueHall) || asString(venue.hall);
+  const venueAddress =
+    asString(location.address) ||
+    asString(location.placeAddress) ||
+    asString(location.mapAddress) ||
+    asString(merged.venueAddress) ||
+    asString(venue.address);
+  const locationLat = asNumber(location.lat) ?? asNumber(location.latitude) ?? asNumber(merged.latitude) ?? asNumber(venue.latitude);
+  const locationLng = asNumber(location.lng) ?? asNumber(location.longitude) ?? asNumber(merged.longitude) ?? asNumber(venue.longitude);
+  const transportTitle = asString(location.transportTitle);
+  const transportDescription = asString(location.transportDescription);
+  const locationTransports: TransportItem[] =
+    Array.isArray(merged.transports) && merged.transports.length > 0
+      ? (merged.transports as TransportItem[])
+      : transportTitle || transportDescription
+        ? [{ id: "location-transport", title: transportTitle, description: transportDescription }]
+        : [];
   const rawGallery = asRecord(merged.gallery);
   const galleryStateImages = Array.isArray(rawGallery.images) ? (rawGallery.images as GalleryImage[]) : [];
   const gallerySourceItems = galleryStateImages.length > 0 ? galleryStateImages : merged.galleryItems ?? [];
@@ -411,13 +434,14 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
       enabled: locationEnabled,
       title: asString(merged.venueTitle) || asString(venue.title, "오시는 길"),
       venueName,
+      hallName: venueHall,
       hall: venueHall,
       address: venueAddress,
-      lat: asNumber(merged.latitude) ?? asNumber(venue.latitude),
-      lng: asNumber(merged.longitude) ?? asNumber(venue.longitude),
+      lat: locationLat,
+      lng: locationLng,
       showMap: asBoolean(merged.showMap, true),
       lockMap: asBoolean(merged.lockMap, false),
-      transportations: normalizeTransport((merged.transports ?? []) as TransportItem[]),
+      transportations: normalizeTransport(locationTransports),
     },
     gallery: {
       enabled: asBoolean(rawGallery.enabled, menuEnabled(menu, "gallery", true)) || galleryImages.length > 0,

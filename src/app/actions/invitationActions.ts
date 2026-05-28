@@ -7,6 +7,14 @@ import type { UploadResult } from "@/lib/upload";
 import type { InvitationData, SavedInvitation } from "@/types/invitation";
 
 function toDbPayload(invitation: SavedInvitation) {
+  const location = invitation.location ?? {
+    venueName: invitation.venueName,
+    hallName: invitation.venueHall,
+    address: invitation.venueAddress,
+    lat: invitation.latitude ?? undefined,
+    lng: invitation.longitude ?? undefined,
+  };
+
   return {
     id: invitation.id,
     slug: invitation.slug,
@@ -48,11 +56,11 @@ function toDbPayload(invitation: SavedInvitation) {
     wedding_time: `${invitation.weddingPeriod} ${invitation.weddingHour} ${invitation.weddingMinute}`,
     venue: {
       title: invitation.venueTitle,
-      name: invitation.venueName,
-      hall: invitation.venueHall,
-      address: invitation.venueAddress,
-      latitude: invitation.latitude,
-      longitude: invitation.longitude,
+      name: location.venueName || invitation.venueName,
+      hall: location.hallName || invitation.venueHall,
+      address: location.address || invitation.venueAddress,
+      latitude: location.lat ?? invitation.latitude,
+      longitude: location.lng ?? invitation.longitude,
       mapLink: invitation.mapLink,
       showMap: invitation.showMap,
       lockMap: invitation.lockMap,

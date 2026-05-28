@@ -10,6 +10,7 @@ import type {
   ImageUploadType,
   InvitationData,
   IntroTemplate,
+  LocationData,
   MenuSectionId,
   TransportItem,
 } from "@/types/invitation";
@@ -283,6 +284,29 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
 
   const update = <K extends keyof InvitationData>(key: K, value: InvitationData[K]) => onChange({ ...data, [key]: value });
   const patch = (next: Partial<InvitationData>) => onChange({ ...data, ...next });
+  const getLocationState = (): LocationData => ({
+    venueName: data.location?.venueName || data.venueName,
+    hallName: data.location?.hallName || data.venueHall,
+    address: data.location?.address || data.venueAddress,
+    detailAddress: data.location?.detailAddress || "",
+    lat: data.location?.lat ?? data.latitude ?? undefined,
+    lng: data.location?.lng ?? data.longitude ?? undefined,
+    transportTitle: data.location?.transportTitle || data.transports[0]?.title || "",
+    transportDescription: data.location?.transportDescription || data.transports[0]?.description || "",
+  });
+  const updateLocation = <K extends keyof LocationData>(field: K, value: LocationData[K]) => {
+    console.log("[Location input change]", { field, value });
+    const nextLocation = { ...getLocationState(), [field]: value };
+    const nextData: Partial<InvitationData> = { location: nextLocation };
+
+    if (field === "venueName") nextData.venueName = String(value ?? "");
+    if (field === "hallName") nextData.venueHall = String(value ?? "");
+    if (field === "address") nextData.venueAddress = String(value ?? "");
+    if (field === "lat") nextData.latitude = typeof value === "number" ? value : null;
+    if (field === "lng") nextData.longitude = typeof value === "number" ? value : null;
+
+    patch(nextData);
+  };
   const toggle = (id: string) => setOpenSections((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   const sectionProps = (id: string) => ({ open: openSections.includes(id), onToggle: () => toggle(id) });
 
@@ -450,7 +474,20 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
 
   const setGroomName = (last: string, first: string) => patch({ groomLastName: last, groomFirstName: first, groomName: `${last}${first}` });
   const setBrideName = (last: string, first: string) => patch({ brideLastName: last, brideFirstName: first, brideName: `${last}${first}` });
-  const updateTransport = (id: string, item: Partial<TransportItem>) => update("transports", data.transports.map((transport) => (transport.id === id ? { ...transport, ...item } : transport)));
+  const updateTransport = (id: string, item: Partial<TransportItem>) => {
+    const nextTransports = data.transports.map((transport) => (transport.id === id ? { ...transport, ...item } : transport));
+    const firstTransport = nextTransports[0];
+    if (item.title !== undefined) console.log("[Location input change]", { field: "transportTitle", value: item.title });
+    if (item.description !== undefined) console.log("[Location input change]", { field: "transportDescription", value: item.description });
+    patch({
+      transports: nextTransports,
+      location: {
+        ...getLocationState(),
+        transportTitle: firstTransport?.title || "",
+        transportDescription: firstTransport?.description || "",
+      },
+    });
+  };
   const updateContact = (id: string, item: Partial<ContactItem>) => update("contacts", data.contacts.map((contact) => (contact.id === id ? { ...contact, ...item } : contact)));
   const updateAccount = (id: string, item: Partial<BankAccountItem>) => update("bankAccounts", data.bankAccounts.map((account) => (account.id === id ? { ...account, ...item } : account)));
   const youtubePreviewId = useMemo(() => extractYouTubeVideoId(data.youtubeUrl), [data.youtubeUrl]);
@@ -594,9 +631,9 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
       </Section>
 
       <Section title="예식장소" {...sectionProps("venue")}>
-        <Field label="예식장명"><Input value={data.venueName} onChange={(event) => update("venueName", event.target.value)} /></Field>
-        <Field label="층과 홀"><Input value={data.venueHall} onChange={(event) => update("venueHall", event.target.value)} /></Field>
-        <Field label="주소"><Input value={data.venueAddress} onChange={(event) => update("venueAddress", event.target.value)} /></Field>
+        <Field label="예식장명"><Input value={data.location?.venueName ?? data.venueName} onChange={(event) => updateLocation("venueName", event.target.value)} /></Field>
+        <Field label="층과 홀"><Input value={data.location?.hallName ?? data.venueHall} onChange={(event) => updateLocation("hallName", event.target.value)} /></Field>
+        <Field label="주소"><Input value={data.location?.address ?? data.venueAddress} onChange={(event) => updateLocation("address", event.target.value)} /></Field>
       </Section>
 
       <Section title="교통수단" {...sectionProps("transport")}>

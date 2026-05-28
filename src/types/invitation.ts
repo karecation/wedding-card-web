@@ -52,6 +52,17 @@ export type TransportItem = {
   description: string;
 };
 
+export type LocationData = {
+  venueName: string;
+  hallName: string;
+  address: string;
+  detailAddress?: string;
+  lat?: number;
+  lng?: number;
+  transportTitle?: string;
+  transportDescription?: string;
+};
+
 export type GalleryImage = ImageAsset & {
   id: string;
   previewUrl: string;
@@ -137,6 +148,7 @@ export type InvitationData = {
   venueName: string;
   venueHall: string;
   venueAddress: string;
+  location: LocationData;
   latitude: number | null;
   longitude: number | null;
   mapLink: string;
@@ -274,6 +286,14 @@ export const emptyInvitationData: InvitationData = {
   venueName: "더리버사이드 호텔",
   venueHall: "몽블랑홀",
   venueAddress: "",
+  location: {
+    venueName: "더리버사이드 호텔",
+    hallName: "몽블랑홀",
+    address: "",
+    detailAddress: "",
+    transportTitle: "",
+    transportDescription: "",
+  },
   latitude: null,
   longitude: null,
   mapLink: "",
