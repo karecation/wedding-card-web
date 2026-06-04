@@ -2,8 +2,15 @@
 
 import { useMemo, useRef, useState } from "react";
 import KakaoMap from "@/components/invitation/KakaoMap";
-import { geocodeKakaoAddress } from "@/lib/kakaoMaps";
-import { asIntroTemplate, getIntroImageSlotPreset, INTRO_LAYOUT_OPTIONS, moodForIntroLayout, resolveIntroLayout } from "@/lib/invitation/introLayouts";
+import { searchKakaoLocation, type LocationSearchResult } from "@/lib/kakaoMaps";
+import {
+  asIntroTemplate,
+  getIntroImageSlotPreset,
+  INTRO_LAYOUT_OPTIONS,
+  resolveIntroLayout,
+  THEME_PRESETS,
+  resolveThemeId,
+} from "@/lib/invitation/introLayouts";
 import { extractYouTubeVideoId } from "@/lib/youtube";
 import { validateUploadFile, type PendingUpload } from "@/lib/upload";
 import type {
@@ -61,8 +68,6 @@ const menuLabels: Record<MenuSectionId, string> = {
   guestbook: "방명록",
   quote: "사진 & 글귀",
 };
-
-const introTemplates = INTRO_LAYOUT_OPTIONS;
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -269,13 +274,25 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
   const [uploadError, setUploadError] = useState("");
   const [locationSearchMessage, setLocationSearchMessage] = useState("");
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [locationSearchResults, setLocationSearchResults] = useState<LocationSearchResult[]>([]);
+  // 주소 입력 draft — 검색 버튼 클릭 시에만 lat/lng 확정
+  const [addressDraft, setAddressDraft] = useState<string | null>(null);
   const [draggedMenuId, setDraggedMenuId] = useState<MenuSectionId | null>(null);
   const [draggedGalleryId, setDraggedGalleryId] = useState<string | null>(null);
 
   const galleryImages = orderedGalleryImages(data);
   const galleryEnabled = data.menuOrder.find((item) => item.id === "gallery")?.enabled ?? data.gallery?.enabled ?? false;
-  const selectedIntroLayout = resolveIntroLayout(data.introTemplate || data.templateMood);
+  // 인트로 레이아웃: introTemplate 우선
+  // backward-compat: introTemplate 없으면 templateMood가 옛 레이아웃 이름인지 확인 후 fallback
+  const selectedIntroLayout = resolveIntroLayout(
+    data.introTemplate ||
+    // templateMood가 새 테마 ID가 아닌 경우에만 레이아웃 fallback으로 사용
+    (THEME_PRESETS.some((t) => t.id === data.templateMood) ? undefined : data.templateMood) ||
+    undefined,
+  );
   const selectedIntroSlot = getIntroImageSlotPreset(selectedIntroLayout);
+  // 테마: templateMood에서 themeId 결정 (새 theme ID 또는 한국어 레이아웃명 → modern 기본)
+  const selectedThemeId = resolveThemeId(data.templateMood);
 
   const update = <K extends keyof InvitationData>(key: K, value: InvitationData[K]) => onChange({ ...data, [key]: value });
   const patch = (next: Partial<InvitationData>) => onChange({ ...data, ...next });
@@ -311,44 +328,72 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
 
     patch(nextData);
   };
+  /** 검색 결과를 선택해서 location에 commit */
+  const commitLocationResult = (result: LocationSearchResult) => {
+    const address = result.roadAddress || result.jibunAddress || result.placeName;
+    const nextLocation = {
+      ...getLocationState(),
+      address,
+      lat: result.lat,
+      lng: result.lng,
+    };
+    patch({
+      location: nextLocation,
+      venueAddress: address,
+      latitude: result.lat,
+      longitude: result.lng,
+    });
+    // draft 초기화 & 결과 목록 닫기
+    setAddressDraft(null);
+    setLocationSearchResults([]);
+    setLocationSearchMessage(result.placeName ? `"${result.placeName}" 위치를 지도에 표시했습니다.` : "검색한 위치를 지도에 표시했습니다.");
+  };
+
   const searchLocationAddress = async () => {
-    const address = getLocationState().address?.trim();
-    if (!address) {
+    const query = (addressDraft ?? getLocationState().address ?? "").trim();
+    if (!query) {
       setLocationSearchMessage("주소를 입력 후 [검색]을 눌러주세요.");
       return;
     }
 
     setIsSearchingLocation(true);
-    setLocationSearchMessage("주소를 검색하는 중입니다.");
+    setLocationSearchResults([]);
+    setLocationSearchMessage("검색 중입니다…");
+
     try {
-      const { lat, lng } = await geocodeKakaoAddress(address);
-      const nextLocation = { ...getLocationState(), address, lat, lng };
-      patch({
-        location: nextLocation,
-        venueAddress: address,
-        latitude: lat,
-        longitude: lng,
-      });
-      setLocationSearchMessage("검색한 위치를 지도에 표시했습니다.");
+      const searchResult = await searchKakaoLocation(query);
+
+      if (searchResult.single) {
+        // draft에 입력된 주소 텍스트를 실제 location.address에 반영
+        if (addressDraft !== null) {
+          updateLocation("address", query);
+        }
+        commitLocationResult(searchResult.single);
+      } else if (searchResult.multiple && searchResult.multiple.length > 0) {
+        // 여러 결과 → 목록 표시
+        setLocationSearchResults(searchResult.multiple);
+        setLocationSearchMessage("아래 결과 중 하나를 선택하세요.");
+      }
     } catch (error) {
       setLocationSearchMessage(error instanceof Error ? error.message : "주소 검색에 실패했습니다.");
     } finally {
       setIsSearchingLocation(false);
     }
   };
-  const updateThemeMood = (mood: string) => {
-    const layout = resolveIntroLayout(mood);
+  /** 테마만 변경 — 인트로 레이아웃은 건드리지 않음 */
+  const updateTheme = (themeId: string) => {
+    const preset = THEME_PRESETS.find((t) => t.id === themeId) ?? THEME_PRESETS[0];
     patch({
-      templateMood: mood,
-      introTemplate: asIntroTemplate(layout),
+      templateMood: preset.id,
+      themeColor: preset.themeColor,
+      fontFamily: preset.fontFamily,
+      fontWeight: preset.fontWeight,
     });
   };
+  /** 인트로 레이아웃만 변경 — 테마(templateMood)는 건드리지 않음 */
   const updateIntroLayout = (template: IntroTemplate) => {
     const layout = resolveIntroLayout(template);
-    patch({
-      introTemplate: asIntroTemplate(layout),
-      templateMood: moodForIntroLayout(layout),
-    });
+    patch({ introTemplate: asIntroTemplate(layout) });
   };
   const toggle = (id: string) => setOpenSections((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   const sectionProps = (id: string) => ({ open: openSections.includes(id), onToggle: () => toggle(id) });
@@ -527,13 +572,23 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
 
       <Section title="테마" {...sectionProps("theme")}>
         <Field label="테마">
-          <Select value={moodForIntroLayout(selectedIntroLayout)} onChange={(event) => updateThemeMood(event.target.value)} className="w-[180px]">
-            {INTRO_LAYOUT_OPTIONS.map((option) => (
-              <option key={option.id} value={option.mood}>
-                {option.mood}
-              </option>
+          <div className="flex flex-wrap gap-2">
+            {THEME_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => updateTheme(preset.id)}
+                className={`rounded-[5px] border px-3 py-1.5 text-left text-[12px] transition ${
+                  selectedThemeId === preset.id
+                    ? "border-[#222] bg-white text-[#111]"
+                    : "border-[#e5e5e5] bg-[#f6f6f6] text-[#999] hover:text-[#555]"
+                }`}
+              >
+                <span className="block font-medium">{preset.label}</span>
+                <span className="block text-[10px] text-[#aaa]">{preset.hint}</span>
+              </button>
             ))}
-          </Select>
+          </div>
         </Field>
         <Field label="컬러">
           <div className="flex items-center gap-2">
@@ -579,8 +634,8 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
 
       <Section title="인트로" {...sectionProps("intro")}>
         <Field label="레이아웃">
-          <div className="grid grid-cols-2 gap-2 min-[560px]:grid-cols-4">
-            {introTemplates.map((template) => (
+          <div className="grid grid-cols-2 gap-2 min-[560px]:grid-cols-3">
+            {INTRO_LAYOUT_OPTIONS.map((template) => (
               <button
                 key={template.id}
                 type="button"
@@ -663,18 +718,52 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         <Field label="예식장명"><Input value={data.location?.venueName ?? data.venueName} onChange={(event) => updateLocation("venueName", event.target.value)} /></Field>
         <Field label="층과 홀"><Input value={data.location?.hallName ?? data.venueHall} onChange={(event) => updateLocation("hallName", event.target.value)} /></Field>
         <Field label="주소">
-          <div className="flex gap-2">
-            <Input value={locationState.address} onChange={(event) => updateLocation("address", event.target.value)} />
-            <button
-              type="button"
-              onClick={searchLocationAddress}
-              disabled={isSearchingLocation}
-              className="h-9 shrink-0 rounded-[4px] border border-[#222] bg-white px-4 text-[13px] font-semibold text-[#111] transition hover:bg-[#f8f3ef] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSearchingLocation ? "검색 중" : "검색"}
-            </button>
+          <div className="space-y-1.5">
+            <div className="flex gap-2">
+              <Input
+                value={addressDraft ?? locationState.address}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  setAddressDraft(val);
+                  // 주소 텍스트는 항상 즉시 반영 — 단 lat/lng는 updateLocation이 자동 초기화
+                  updateLocation("address", val);
+                }}
+                placeholder="예: 서울 서초구 강남대로107길 6 또는 더리버사이드 호텔"
+              />
+              <button
+                type="button"
+                onClick={searchLocationAddress}
+                disabled={isSearchingLocation}
+                className="h-9 shrink-0 rounded-[4px] border border-[#222] bg-white px-4 text-[13px] font-semibold text-[#111] transition hover:bg-[#f8f3ef] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSearchingLocation ? "검색 중" : "검색"}
+              </button>
+            </div>
+            <p className="text-[11px] leading-5 text-[#aaa]">
+              정확한 검색을 위해 도로명 주소를 권장합니다. 장소명만 입력하면 카카오 장소 검색 결과에서 선택하세요.
+            </p>
           </div>
         </Field>
+        {/* 장소 검색 결과 목록 */}
+        {locationSearchResults.length > 0 && (
+          <div className="ml-[108px] overflow-hidden rounded-[4px] border border-[#e0d8d2] bg-white shadow-sm">
+            {locationSearchResults.map((result, index) => (
+              <button
+                key={result.placeId ?? index}
+                type="button"
+                onClick={() => commitLocationResult(result)}
+                className="flex w-full flex-col items-start border-b border-[#f0ece8] px-4 py-3 text-left text-[12px] last:border-0 hover:bg-[#faf7f3]"
+              >
+                <span className="font-semibold text-[#2f2825]">{result.placeName}</span>
+                {result.roadAddress && <span className="mt-0.5 text-[#756962]">{result.roadAddress}</span>}
+                {result.jibunAddress && result.jibunAddress !== result.roadAddress && (
+                  <span className="text-[#a8a098]">{result.jibunAddress}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* 지도 미리보기 (검색 성공 후) */}
         <div className="ml-[108px] overflow-hidden rounded-[4px] border border-[#e5ded8] bg-[#faf7f2]">
           {hasEditorMapTarget ? (
             <KakaoMap
@@ -686,16 +775,13 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
             />
           ) : (
             <div className="grid h-[280px] place-items-center bg-[#f3eee8] px-6 text-center text-[13px] leading-6 text-[#8f8077]">
-              주소를 입력 후 [검색]을 눌러주세요.
+              도로명 주소 또는 장소명을 입력한 뒤 [검색]을 눌러주세요.
             </div>
           )}
         </div>
-        {locationSearchMessage && <p className="ml-[108px] text-[12px] leading-5 text-[#8f8077]">{locationSearchMessage}</p>}
-        <div className="ml-[108px] space-y-2">
-          <Checkbox label="지도 표시" checked={data.showMap} onChange={(value) => update("showMap", value)} />
-          <Checkbox label="지도 잠금" checked={data.lockMap} onChange={(value) => update("lockMap", value)} />
-          <Checkbox label="약도 첨부" checked={data.attachMap} onChange={(value) => update("attachMap", value)} />
-        </div>
+        {locationSearchMessage && (
+          <p className="ml-[108px] whitespace-pre-line text-[12px] leading-5 text-[#8f8077]">{locationSearchMessage}</p>
+        )}
       </Section>
 
       <Section title="교통수단" {...sectionProps("transport")}>

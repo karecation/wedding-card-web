@@ -16,8 +16,13 @@ export default function LocationSection({ invitation }: { invitation: Normalized
   const venueName = invitation.location.venueName;
   const hallName = invitation.location.hallName || invitation.location.hall;
   const address = invitation.location.address;
-  const hasCoords = typeof invitation.location.lat === "number" && typeof invitation.location.lng === "number";
-  const hasMapTarget = Boolean(address || hasCoords);
+  const hasCoords =
+    typeof invitation.location.lat === "number" &&
+    typeof invitation.location.lng === "number" &&
+    Number.isFinite(invitation.location.lat) &&
+    Number.isFinite(invitation.location.lng);
+  const hasAddress = Boolean(address?.trim());
+  const hasMapTarget = hasAddress || hasCoords;
   const visibleTransport = invitation.location.transportations.filter((item) => item.title || item.body);
 
   return (
@@ -38,8 +43,9 @@ export default function LocationSection({ invitation }: { invitation: Normalized
         )}
       </div>
 
-      {invitation.location.showMap && hasMapTarget ? (
-        <div className="mt-6 overflow-hidden rounded-[12px] border border-[var(--invite-border)] bg-[#f1eee9]">
+      {/* 지도 영역: 좌표 확정 시 실제 지도, 그 전까지 안내 문구 */}
+      <div className="mt-6 overflow-hidden rounded-[12px] border border-[var(--invite-border)] bg-[#f1eee9]">
+        {hasCoords && invitation.location.showMap !== false ? (
           <KakaoMap
             venueName={venueName}
             address={address}
@@ -47,12 +53,14 @@ export default function LocationSection({ invitation }: { invitation: Normalized
             lng={invitation.location.lng}
             height={260}
           />
-        </div>
-      ) : (
-        <div className="mt-6 grid min-h-[160px] place-items-center rounded-[12px] border border-dashed border-[var(--invite-border)] bg-white/50 px-6 text-center text-[12px] leading-6 text-[var(--invite-muted)]">
-          주소를 입력하면 지도가 표시됩니다.
-        </div>
-      )}
+        ) : (
+          <div className="grid h-[260px] place-items-center px-6 text-center text-[12px] leading-6 text-[#9d8a80]">
+            {hasAddress
+              ? "주소 입력 후 [검색]을 눌러주세요"
+              : "예식 장소 정보가 아직 입력되지 않았습니다."}
+          </div>
+        )}
+      </div>
 
       {hasMapTarget && (
         <div className="mt-5 grid grid-cols-3 gap-2">

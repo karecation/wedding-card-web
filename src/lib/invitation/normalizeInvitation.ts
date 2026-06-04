@@ -214,9 +214,37 @@ function normalizeMenuOrder(value: unknown): MenuSectionId[] {
   return [...ids, ...missing];
 }
 
+/** accent hex → background token 매핑 */
+const ACCENT_TO_TOKEN: Record<string, "ivory" | "beige" | "pink"> = {
+  // 기본 3색
+  "#c9897a": "ivory",
+  "#b78f72": "beige",
+  "#d8a0a6": "pink",
+  // 추가 테마 프리셋
+  "#a8a090": "ivory",   // natural
+  "#8a7a6a": "beige",   // classic
+};
+
 function normalizeThemeColor(value: string): NormalizedInvitation["design"]["themeColor"] {
-  if (value === "pink" || value.includes("pink") || value.includes("f0") || value.includes("e8")) return "pink";
-  if (value === "beige" || value.includes("beige") || value.includes("c9") || value.includes("a0")) return "beige";
+  const v = (value ?? "").trim().toLowerCase();
+  // 1. named
+  if (v === "pink") return "pink";
+  if (v === "beige") return "beige";
+  if (v === "ivory") return "ivory";
+  // 2. known hex exact match
+  const exact = ACCENT_TO_TOKEN[v];
+  if (exact) return exact;
+  // 3. hex-based heuristic (r,g,b 분석)
+  if (v.startsWith("#") && v.length === 7) {
+    const r = parseInt(v.slice(1, 3), 16);
+    const g = parseInt(v.slice(3, 5), 16);
+    const b = parseInt(v.slice(5, 7), 16);
+    if (b > 130 && b > g * 0.88) return "pink";   // 파란 기운 있는 핑크
+    if (r > g && g > b) return "beige";             // 따뜻한 갈색 계열
+  }
+  // 4. legacy string patterns
+  if (v.includes("pink") || v.includes("f06") || v.includes("e8d")) return "pink";
+  if (v.includes("beige")) return "beige";
   return "ivory";
 }
 
@@ -413,7 +441,11 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
       accentColor: asString(merged.themeColor) || asString(theme.themeColor, "#c9897a"),
       fontFamily: normalizeFont(asString(merged.fontFamily) || asString(theme.fontFamily, "gowun-dodum")),
       fontWeight: normalizeWeight(asString(merged.fontWeight) || asString(theme.fontWeight)),
-      introLayout: normalizeIntroLayout(asString(merged.introTemplate) || asString(merged.templateMood)),
+      // introTemplate 우선 — 없으면 templateMood가 레이아웃명일 때만 fallback
+      introLayout: normalizeIntroLayout(
+        asString(merged.introTemplate) ||
+        asString(merged.templateMood),
+      ),
       frameStyle: normalizeFrame(asString(merged.introShape) || asString(theme.introShape)),
       visualEffect: "none",
       particleEffect: "none",

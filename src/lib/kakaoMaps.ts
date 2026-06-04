@@ -1,8 +1,20 @@
 "use client";
 
 export type KakaoGeocodeResult = {
-  x: string;
-  y: string;
+  x: string; // lng
+  y: string; // lat
+  address_name?: string;
+  road_address?: { address_name?: string } | null;
+};
+
+export type KakaoPlaceResult = {
+  id: string;
+  place_name: string;
+  road_address_name: string;
+  address_name: string;
+  x: string; // lng
+  y: string; // lat
+  category_name?: string;
 };
 
 type KakaoLatLng = object;
@@ -17,6 +29,13 @@ export type KakaoMaps = {
     Status: { OK: string };
     Geocoder: new () => {
       addressSearch: (address: string, callback: (result: KakaoGeocodeResult[], status: string) => void) => void;
+    };
+    Places: new () => {
+      keywordSearch: (
+        keyword: string,
+        callback: (result: KakaoPlaceResult[], status: string) => void,
+        options?: { size?: number },
+      ) => void;
     };
   };
 };
@@ -74,7 +93,8 @@ export function loadKakaoMaps(appKey = getKakaoMapAppKey()) {
   return kakaoMapsPromise;
 }
 
-export async function geocodeKakaoAddress(address: string) {
+/** 도로명/지번 주소로 좌표 검색 */
+export async function geocodeKakaoAddress(address: string): Promise<{ lat: number; lng: number }> {
   const cleanAddress = address.trim();
   if (!cleanAddress) throw new Error("주소를 입력 후 [검색]을 눌러주세요.");
 
@@ -92,7 +112,107 @@ export async function geocodeKakaoAddress(address: string) {
         resolve({ lat: Number(result[0].y), lng: Number(result[0].x) });
         return;
       }
-      reject(new Error("주소 검색 결과가 없습니다."));
+      reject(new Error("ADDRESS_NOT_FOUND"));
     });
   });
+}
+
+/** 장소명으로 검색 (keywordSearch) */
+export async function keywordSearchKakao(keyword: string): Promise<KakaoPlaceResult[]> {
+  const cleanKeyword = keyword.trim();
+  if (!cleanKeyword) throw new Error("검색어를 입력해 주세요.");
+
+  await loadKakaoMaps();
+
+  return new Promise<KakaoPlaceResult[]>((resolve, reject) => {
+    if (!window.kakao?.maps?.services?.Places) {
+      reject(new Error("카카오 장소 검색 서비스를 불러오지 못했습니다."));
+      return;
+    }
+
+    const ps = new window.kakao.maps.services.Places();
+    ps.keywordSearch(
+      cleanKeyword,
+      (result, status) => {
+        if (status === window.kakao?.maps.services.Status.OK && result.length > 0) {
+          resolve(result);
+          return;
+        }
+        reject(new Error("KEYWORD_NOT_FOUND"));
+      },
+      { size: 5 },
+    );
+  });
+}
+
+export type LocationSearchResult = {
+  placeName: string;
+  roadAddress: string;
+  jibunAddress: string;
+  lat: number;
+  lng: number;
+  placeId?: string;
+};
+
+/**
+ * 주소 검색 통합:
+ * 1. addressSearch(도로명/지번) 시도
+ * 2. 실패 시 keywordSearch(장소명) fallback
+ * - 단건이면 즉시 resolve
+ * - 복수 결과면 목록으로 resolve
+ */
+export async function searchKakaoLocation(query: string): Promise<{
+  single?: LocationSearchResult;
+  multiple?: LocationSearchResult[];
+}> {
+  const clean = query.trim();
+  if (!clean) throw new Error("주소를 입력 후 [검색]을 눌러주세요.");
+
+  // 1. 도로명/지번 주소 검색
+  try {
+    const { lat, lng } = await geocodeKakaoAddress(clean);
+    return {
+      single: {
+        placeName: "",
+        roadAddress: clean,
+        jibunAddress: clean,
+        lat,
+        lng,
+      },
+    };
+  } catch (geocodeErr) {
+    const msg = geocodeErr instanceof Error ? geocodeErr.message : "";
+    // 주소 형식이 맞지 않으면 keyword fallback
+    if (msg !== "ADDRESS_NOT_FOUND" && !msg.includes("NOT_FOUND")) throw geocodeErr;
+  }
+
+  // 2. 장소명(keyword) 검색 fallback
+  const places = await keywordSearchKakao(clean).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("NOT_FOUND") || msg.includes("KEYWORD_NOT_FOUND")) {
+      throw new Error(
+        `검색 결과가 없습니다. 도로명 주소로 다시 입력해 주세요.\n예: 서울 서초구 강남대로107길 6`,
+      );
+    }
+    throw err;
+  });
+
+  if (places.length === 0) {
+    throw new Error(`검색 결과가 없습니다. 도로명 주소로 다시 입력해 주세요.\n예: 서울 서초구 강남대로107길 6`);
+  }
+
+  const toResult = (p: KakaoPlaceResult): LocationSearchResult => ({
+    placeName: p.place_name,
+    roadAddress: p.road_address_name,
+    jibunAddress: p.address_name,
+    lat: Number(p.y),
+    lng: Number(p.x),
+    placeId: p.id,
+  });
+
+  if (places.length === 1) {
+    return { single: toResult(places[0]) };
+  }
+
+  return { multiple: places.map(toResult) };
 }
