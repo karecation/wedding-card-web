@@ -364,7 +364,7 @@ export const emptyInvitationData: InvitationData = {
   fontWeight: "regular",
   preventZoom: true,
   scrollEffect: true,
-  introShape: "기본",
+  introShape: "basic",
   introTemplate: "moment",
   introHeadline: "We're getting married",
   introSubText: "Save The Date",

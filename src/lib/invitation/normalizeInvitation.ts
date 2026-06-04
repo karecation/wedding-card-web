@@ -259,8 +259,9 @@ function normalizeWeight(value: string): "light" | "regular" | "medium" {
 }
 
 function normalizeFrame(value: string): NormalizedInvitation["design"]["frameStyle"] {
+  if (value === "basic" || value === "default" || value.includes("기본")) return "default";
   if (value === "arch" || value.includes("아치")) return "arch";
-  if (value === "ellipse" || value.includes("타원")) return "ellipse";
+  if (value === "oval" || value === "ellipse" || value.includes("타원")) return "ellipse";
   if (value === "frame" || value.includes("액자")) return "frame";
   if (value === "fill" || value.includes("채우기")) return "fill";
   return "default";

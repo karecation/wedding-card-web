@@ -16,11 +16,12 @@ function getDate(date: string) {
 }
 
 function frameClass(style: NormalizedInvitation["design"]["frameStyle"], layout: IntroLayout) {
+  if (layout === "start") return "rounded-none";
   if (layout === "together") return "rounded-[10px]";
   if (layout === "goodday") return "rounded-[3px] shadow-[0_10px_22px_rgba(88,63,49,0.10)]";
   if (style === "arch") return "rounded-t-full";
   if (style === "ellipse") return "rounded-[50%]";
-  if (style === "frame") return "rounded-[6px] border-[10px] border-white shadow-[0_8px_24px_rgba(70,50,40,0.12)]";
+  if (style === "frame") return "rounded-[6px] border border-[#ded3ca] bg-white p-2 shadow-[0_8px_24px_rgba(70,50,40,0.10)]";
   if (style === "fill") return "rounded-none";
   return layout === "minimal" ? "rounded-[12px]" : "rounded-[4px]";
 }

@@ -222,56 +222,6 @@ function UploadBox({
   );
 }
 
-function IntroLayoutPreviewCard({ layout }: { layout: string }) {
-  const config = getIntroThemeConfig(layout);
-  const isStart = config.id === "start";
-  const isTogether = config.id === "together";
-  const isGoodday = config.id === "goodday";
-
-  return (
-    <div className={`w-full max-w-[360px] rounded-[6px] border border-[#ebe3dc] p-4 ${config.thumbnailClassName}`}>
-      <div className="mx-auto max-w-[180px] rounded-[4px] bg-white/70 px-3 py-4 text-center shadow-[0_8px_24px_rgba(80,55,43,0.06)]">
-        {isStart ? (
-          <div className="mb-3 flex items-center justify-between text-[10px] text-[#2f2825]">
-            <span>신랑</span>
-            <span className="text-[15px] leading-none text-[#2f2825]">06 / 05</span>
-            <span>신부</span>
-          </div>
-        ) : isTogether ? (
-          <div className="mb-3 text-[12px] leading-5 text-[#b77866]">
-            <span>신랑</span>
-            <span className="mx-2 inline-block h-px w-4 bg-[#d9b7aa] align-middle" />
-            <span>신부</span>
-          </div>
-        ) : isGoodday ? (
-          <div className="mb-3 space-y-1 text-[#2f2825]">
-            <p className="text-[12px]">신랑 & 신부</p>
-            <p className="text-[8px] text-[#8b766c]">2026. 06. 05</p>
-          </div>
-        ) : (
-          <div className="mb-3 space-y-1 text-[#2f2825]">
-            <p className="text-[13px] tracking-[0.1em]">26 | 06 | 05</p>
-            <p className="text-[7px] tracking-[0.28em] text-[#8b766c]">FRIDAY</p>
-          </div>
-        )}
-        <div className={`${config.thumbnailImageClassName} rounded-[3px] bg-[#d9d6d2]`} />
-        <div className="mt-3 space-y-1 text-[8px] text-[#75635b]">
-          {!isStart && !isTogether && !isGoodday && <p>신랑 | 신부</p>}
-          <p>예식일 · 예식장소</p>
-          {isGoodday && <p className="pt-1 text-[#b77866]">초대합니다</p>}
-        </div>
-      </div>
-      <div className="mt-3">
-        <p className="text-[13px] font-semibold text-[#2f2825]">
-          {config.label}
-          {config.badge && <span className="ml-1 align-super text-[9px] text-[#d46f5d]">{config.badge}</span>}
-        </p>
-        <p className="mt-1 text-[11px] leading-5 text-[#8b766c]">{config.hint}</p>
-      </div>
-    </div>
-  );
-}
-
 function Help({ children }: { children: React.ReactNode }) {
   return <p className="text-[12px] leading-6 text-[#999]">{children}</p>;
 }
@@ -304,6 +254,23 @@ function labelToGalleryType(label: string): "slide" | "grid" | "masonry" {
   return "grid";
 }
 
+const introFrameOptions = [
+  { key: "basic", label: "기본" },
+  { key: "arch", label: "아치" },
+  { key: "oval", label: "타원" },
+  { key: "frame", label: "액자" },
+  { key: "fill", label: "채우기" },
+] as const;
+
+function normalizeIntroFrameKey(value: string | null | undefined) {
+  const clean = value?.trim() ?? "";
+  if (clean === "arch" || clean.includes("아치")) return "arch";
+  if (clean === "oval" || clean === "ellipse" || clean.includes("타원")) return "oval";
+  if (clean === "frame" || clean.includes("액자")) return "frame";
+  if (clean === "fill" || clean.includes("채우기")) return "fill";
+  return "basic";
+}
+
 function orderedGalleryImages(data: InvitationData) {
   const source = data.gallery?.images?.length ? data.gallery.images : data.galleryItems;
   return source
@@ -334,6 +301,8 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
   const selectedIntroLayout = resolveIntroLayout(data.introTemplate || data.templateMood);
   const selectedIntroSlot = getIntroImageSlotPreset(selectedIntroLayout);
   const selectedIntroTheme = getIntroThemeConfig(selectedIntroLayout);
+  const canCustomizeIntroFrame = selectedIntroLayout === "moment" || selectedIntroLayout === "minimal";
+  const selectedIntroFrame = normalizeIntroFrameKey(data.introShape);
 
   const update = <K extends keyof InvitationData>(key: K, value: InvitationData[K]) => onChange({ ...data, [key]: value });
   const patch = (next: Partial<InvitationData>) => onChange({ ...data, ...next });
@@ -667,14 +636,6 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
       </Section>
 
       <Section title="인트로" {...sectionProps("intro")}>
-        <Field label="레이아웃">
-          <IntroLayoutPreviewCard layout={selectedIntroLayout} />
-        </Field>
-        <Field label="프레임">
-          <div className="flex flex-wrap gap-2">
-            {["기본", "아치", "타원", "액자", "채우기"].map((shape) => <Chip key={shape} active={data.introShape === shape} onClick={() => update("introShape", shape)}>{shape}</Chip>)}
-          </div>
-        </Field>
         <Field label="대표 사진">
           <UploadBox
             imageUrl={data.coverImage || data.introImage}
@@ -683,6 +644,21 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
             className={selectedIntroSlot.editorFrameClassName}
           />
         </Field>
+        {canCustomizeIntroFrame && (
+          <Field label="프레임">
+            <div className="flex flex-wrap gap-2">
+              {introFrameOptions.map((shape) => (
+                <Chip
+                  key={shape.key}
+                  active={selectedIntroFrame === shape.key}
+                  onClick={() => update("introShape", shape.key)}
+                >
+                  {shape.label}
+                </Chip>
+              ))}
+            </div>
+          </Field>
+        )}
         <Field label="문구">
           <div className="space-y-2">
             <Input value={data.introHeadline} onChange={(event) => update("introHeadline", event.target.value)} placeholder="We're getting married" />
