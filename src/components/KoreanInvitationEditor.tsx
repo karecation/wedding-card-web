@@ -81,7 +81,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`h-9 w-full min-w-0 rounded-[4px] border border-[#ebebeb] bg-white px-3 text-[13px] text-[#161616] outline-none placeholder:text-[#bcbcbc] focus:border-[#999] ${props.className ?? ""}`}
+      className={`h-9 w-full min-w-0 rounded-[6px] border border-[#e8ded5] bg-white px-3 text-[13px] text-[#2b211c] outline-none placeholder:text-[#bcbcbc] focus:border-[#8e7464] ${props.className ?? ""}`}
     />
   );
 }
@@ -90,7 +90,7 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`w-full min-w-0 rounded-[4px] border border-[#ebebeb] bg-white px-3 py-2 text-[13px] leading-6 text-[#161616] outline-none placeholder:text-[#bcbcbc] focus:border-[#999] ${props.className ?? ""}`}
+      className={`w-full min-w-0 rounded-[6px] border border-[#e8ded5] bg-white px-3 py-2 text-[13px] leading-6 text-[#2b211c] outline-none placeholder:text-[#bcbcbc] focus:border-[#8e7464] ${props.className ?? ""}`}
     />
   );
 }
@@ -99,7 +99,7 @@ function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`h-9 rounded-[4px] border border-[#ebebeb] bg-white px-3 text-[13px] text-[#161616] outline-none focus:border-[#999] ${props.className ?? ""}`}
+      className={`h-9 rounded-[6px] border border-[#e8ded5] bg-white px-3 text-[13px] text-[#2b211c] outline-none focus:border-[#8e7464] ${props.className ?? ""}`}
     />
   );
 }
@@ -119,7 +119,7 @@ function Chip({ active, children, onClick }: { active?: boolean; children: React
       type="button"
       onClick={onClick}
       className={`h-8 rounded-[5px] px-3 text-[12px] transition ${
-        active ? "border border-[#222] bg-white text-[#111]" : "border border-transparent bg-[#f6f6f6] text-[#999] hover:text-[#555]"
+        active ? "border border-[#3A2F2A] bg-white text-[#2b211c]" : "border border-transparent bg-[#f7f3ef] text-[#9b8d84] hover:text-[#5e5048]"
       }`}
     >
       {children}
@@ -141,16 +141,16 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden border border-[#ebebeb] bg-white">
+    <section className="overflow-hidden rounded-[10px] border border-[#e6d8cc] bg-white/95 shadow-[0_10px_28px_rgba(58,47,42,0.035)]">
       <button type="button" onClick={onToggle} className="flex h-[54px] w-full items-center justify-between px-5 text-left">
         <span className="flex items-center gap-2">
-          <span className="grid size-4 place-items-center rounded-full bg-[#555] text-[10px] text-white">✓</span>
+          <span className="grid size-4 place-items-center rounded-full bg-[#8E7464] text-[10px] text-white">✓</span>
           <span className="text-[15px] font-semibold tracking-[-0.02em] text-[#111]">{title}</span>
           {badge && <span className="rounded bg-[#f4f4f4] px-1.5 py-0.5 text-[10px] text-[#999]">{badge}</span>}
         </span>
         <span className="text-[18px] leading-none text-[#555]">{open ? "⌃" : "⌄"}</span>
       </button>
-      {open && <div className="space-y-4 border-t border-[#f1f1f1] px-5 py-5">{children}</div>}
+      {open && <div className="space-y-4 border-t border-[#f1ebe6] px-5 py-5">{children}</div>}
     </section>
   );
 }
@@ -179,7 +179,7 @@ function UploadBox({
 
   return (
     <div
-      className={`grid min-h-[146px] w-full max-w-[320px] cursor-pointer place-items-center overflow-hidden rounded-[6px] border border-dashed bg-[#f8f8f8] px-4 py-4 text-center text-[12px] transition ${isDragging ? "border-[#222] bg-white" : "border-[#dedede] text-[#f06f52] hover:border-[#c9c9c9]"} ${className ?? ""}`}
+      className={`grid min-h-[146px] w-full max-w-[320px] cursor-pointer place-items-center overflow-hidden rounded-[8px] border border-dashed bg-[#faf7f3] px-4 py-4 text-center text-[12px] transition ${isDragging ? "border-[#3A2F2A] bg-white" : "border-[#ded3c7] text-[#B8896A] hover:border-[#B8896A]"} ${className ?? ""}`}
       onDragOver={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -203,7 +203,7 @@ function UploadBox({
           <img src={imageUrl} alt="" className="h-full w-full rounded-[4px] object-cover" />
         ) : (
           <span className="space-y-1 leading-5">
-            <span className="block font-semibold text-[#f06f52]">{isGallery ? "사진을 클릭하거나 여기로 끌어다 놓으세요" : label}</span>
+            <span className="block font-semibold text-[#B8896A]">{isGallery ? "사진을 클릭하거나 여기로 끌어다 놓으세요" : label}</span>
             {isGallery && <span className="block text-[11px] text-[#999]">여러 장을 한 번에 추가할 수 있습니다.</span>}
           </span>
         )}
@@ -268,6 +268,26 @@ const introFrameOptions = [
   { key: "fill", label: "채우기" },
 ] as const;
 
+const weddingColorOptions = [
+  { name: "Champagne Beige", color: "#B8896A" },
+  { name: "Dusty Rose", color: "#C98F8A" },
+  { name: "Mocha Taupe", color: "#8E7464" },
+  { name: "Sage Gray", color: "#8F9A8B" },
+  { name: "Ink Brown", color: "#3A2F2A" },
+] as const;
+
+function normalizePaletteColor(value: string | null | undefined) {
+  const clean = (value ?? "").trim().toLowerCase();
+  if (!clean) return "#B8896A";
+  const exact = weddingColorOptions.find((option) => option.color.toLowerCase() === clean);
+  if (exact) return exact.color;
+  if (clean.includes("pink") || clean.includes("rose") || clean === "#d8a0a6" || clean === "#f06f52") return "#C98F8A";
+  if (clean.includes("dark") || clean.includes("black") || clean === "#8a7a6a") return "#3A2F2A";
+  if (clean.includes("sage") || clean.includes("green") || clean === "#a8a090") return "#8F9A8B";
+  if (clean.includes("taupe") || clean === "#b78f72") return "#8E7464";
+  return "#B8896A";
+}
+
 function normalizeIntroFrameKey(value: string | null | undefined) {
   const clean = value?.trim() ?? "";
   if (clean === "arch" || clean.includes("아치")) return "arch";
@@ -309,6 +329,7 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
   const selectedIntroTheme = getIntroThemeConfig(selectedIntroLayout);
   const canCustomizeIntroFrame = selectedIntroLayout === "moment" || selectedIntroLayout === "minimal";
   const selectedIntroFrame = normalizeIntroFrameKey(data.introShape);
+  const selectedPaletteColor = normalizePaletteColor(data.themeColor);
 
   const update = <K extends keyof InvitationData>(key: K, value: InvitationData[K]) => onChange({ ...data, [key]: value });
   const patch = (next: Partial<InvitationData>) => onChange({ ...data, ...next });
@@ -609,17 +630,17 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         </Field>
         <Field label="컬러">
           <div className="flex items-center gap-2">
-            {[
-              ["#c9897a", "ivory"],
-              ["#b78f72", "beige"],
-              ["#d8a0a6", "pink"],
-            ].map(([color, name]) => (
+            {weddingColorOptions.map(({ color, name }) => (
               <button
                 key={color}
                 type="button"
                 aria-label={name}
                 onClick={() => update("themeColor", color)}
-                className={`size-7 rounded-full border ${data.themeColor === color ? "border-[#222]" : "border-[#ddd]"}`}
+                className={`size-8 rounded-full border transition ${
+                  selectedPaletteColor === color
+                    ? "border-[#2b211c] ring-2 ring-[#2b211c]/15 ring-offset-2 ring-offset-white"
+                    : "border-[#ded3c7] hover:scale-105"
+                }`}
                 style={{ backgroundColor: color }}
               />
             ))}

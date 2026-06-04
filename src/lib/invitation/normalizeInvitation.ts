@@ -216,6 +216,12 @@ function normalizeMenuOrder(value: unknown): MenuSectionId[] {
 
 /** accent hex → background token 매핑 */
 const ACCENT_TO_TOKEN: Record<string, "ivory" | "beige" | "pink"> = {
+  // SAVE THE DATE palette
+  "#b8896a": "beige",
+  "#c98f8a": "pink",
+  "#8e7464": "beige",
+  "#8f9a8b": "ivory",
+  "#3a2f2a": "beige",
   // 기본 3색
   "#c9897a": "ivory",
   "#b78f72": "beige",
@@ -246,6 +252,20 @@ function normalizeThemeColor(value: string): NormalizedInvitation["design"]["the
   if (v.includes("pink") || v.includes("f06") || v.includes("e8d")) return "pink";
   if (v.includes("beige")) return "beige";
   return "ivory";
+}
+
+function normalizeAccentColor(value: string) {
+  const v = (value ?? "").trim().toLowerCase();
+  if (!v) return "#B8896A";
+  if (v === "#b8896a" || v.includes("champagne")) return "#B8896A";
+  if (v === "#c98f8a" || v.includes("dusty") || v.includes("rose")) return "#C98F8A";
+  if (v === "#8e7464" || v.includes("taupe")) return "#8E7464";
+  if (v === "#8f9a8b" || v.includes("sage")) return "#8F9A8B";
+  if (v === "#3a2f2a" || v.includes("ink") || v.includes("black") || v.includes("dark")) return "#3A2F2A";
+  if (v === "#d8a0a6" || v.includes("pink") || v.includes("f06")) return "#C98F8A";
+  if (v === "#b78f72" || v === "#8a7a6a") return "#8E7464";
+  if (v === "#c9897a" || v === "#a87563") return "#B8896A";
+  return value || "#B8896A";
 }
 
 function normalizeFont(value: string) {
@@ -439,7 +459,7 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
     design: {
       theme: asString(merged.templateMood) || asString(theme.templateMood, "모던"),
       themeColor: normalizeThemeColor(asString(merged.themeColor) || asString(theme.themeColor)),
-      accentColor: asString(merged.themeColor) || asString(theme.themeColor, "#c9897a"),
+      accentColor: normalizeAccentColor(asString(merged.themeColor) || asString(theme.themeColor, "#B8896A")),
       fontFamily: normalizeFont(asString(merged.fontFamily) || asString(theme.fontFamily, "gowun-dodum")),
       fontWeight: normalizeWeight(asString(merged.fontWeight) || asString(theme.fontWeight)),
       // introTemplate 우선, 없으면 templateMood를 layout key로 해석한다.

@@ -69,7 +69,7 @@ export const INTRO_THEME_CONFIG: Record<IntroLayoutId, IntroLayoutOption & {
 }> = {
   moment: {
     ...INTRO_LAYOUT_OPTIONS[0],
-    themeColor: "#c9897a",
+    themeColor: "#B8896A",
     fontFamily: "gowun-dodum",
     fontWeight: "regular",
     thumbnailClassName: "bg-[#fbf8f5]",
@@ -77,7 +77,7 @@ export const INTRO_THEME_CONFIG: Record<IntroLayoutId, IntroLayoutOption & {
   },
   minimal: {
     ...INTRO_LAYOUT_OPTIONS[1],
-    themeColor: "#b78f72",
+    themeColor: "#8E7464",
     fontFamily: "pretendard",
     fontWeight: "light",
     thumbnailClassName: "bg-[#fffdf9]",
@@ -85,7 +85,7 @@ export const INTRO_THEME_CONFIG: Record<IntroLayoutId, IntroLayoutOption & {
   },
   start: {
     ...INTRO_LAYOUT_OPTIONS[2],
-    themeColor: "#a87563",
+    themeColor: "#8E7464",
     fontFamily: "gowun-batang",
     fontWeight: "regular",
     thumbnailClassName: "bg-white",
@@ -93,7 +93,7 @@ export const INTRO_THEME_CONFIG: Record<IntroLayoutId, IntroLayoutOption & {
   },
   together: {
     ...INTRO_LAYOUT_OPTIONS[3],
-    themeColor: "#c9897a",
+    themeColor: "#C98F8A",
     fontFamily: "gowun-batang",
     fontWeight: "regular",
     thumbnailClassName: "bg-[#f7f1ed]",
@@ -101,7 +101,7 @@ export const INTRO_THEME_CONFIG: Record<IntroLayoutId, IntroLayoutOption & {
   },
   goodday: {
     ...INTRO_LAYOUT_OPTIONS[4],
-    themeColor: "#b78f72",
+    themeColor: "#B8896A",
     fontFamily: "gowun-batang",
     fontWeight: "regular",
     thumbnailClassName: "bg-[radial-gradient(circle_at_1px_1px,rgba(120,92,72,0.10)_1px,transparent_0)] bg-[length:8px_8px]",
@@ -207,7 +207,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "modern",
     label: "모던",
-    themeColor: "#c9897a",
+    themeColor: "#B8896A",
     fontFamily: "gowun-dodum",
     fontWeight: "regular",
     hint: "따뜻한 로즈톤",
@@ -215,7 +215,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "minimal",
     label: "미니멀",
-    themeColor: "#b78f72",
+    themeColor: "#8E7464",
     fontFamily: "pretendard",
     fontWeight: "light",
     hint: "깔끔한 베이지",
@@ -223,7 +223,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "natural",
     label: "내추럴",
-    themeColor: "#a8a090",
+    themeColor: "#8F9A8B",
     fontFamily: "gowun-batang",
     fontWeight: "regular",
     hint: "자연스러운 그레이",
@@ -231,7 +231,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "romantic",
     label: "로맨틱",
-    themeColor: "#d8a0a6",
+    themeColor: "#C98F8A",
     fontFamily: "nanum-myeongjo",
     fontWeight: "light",
     hint: "부드러운 핑크",
@@ -239,7 +239,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "classic",
     label: "클래식",
-    themeColor: "#8a7a6a",
+    themeColor: "#3A2F2A",
     fontFamily: "noto-serif",
     fontWeight: "regular",
     hint: "고급스러운 다크",

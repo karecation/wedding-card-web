@@ -592,7 +592,7 @@ function CreatePageContent() {
 
   return (
     <main
-      className="create-page bg-[#fafafa] text-[#111]"
+      className="create-page text-[#2b211c]"
       onDragOver={(event) => {
         if (Array.from(event.dataTransfer.types).includes("Files")) event.preventDefault();
       }}
@@ -603,14 +603,14 @@ function CreatePageContent() {
       <header className="create-header">
         <div className="mx-auto flex h-full w-full max-w-[1080px] items-center justify-between px-4">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold tracking-[0.18em] text-[#c78372]">INVITATION BUILDER</p>
+            <p className="text-[11px] font-semibold tracking-[0.2em] text-[#8e7464]">INVITATION BUILDER</p>
             <p className="truncate text-[13px] text-[#5d524b]">모바일 청첩장 제작</p>
           </div>
           <button
             type="button"
             onClick={handleSave}
             disabled={isSaving}
-            className="h-8 rounded-[4px] bg-[#f49a79] px-6 text-[13px] font-semibold text-white transition hover:bg-[#ee8765] disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-9 rounded-[7px] bg-[#B8896A] px-7 text-[13px] font-semibold text-white shadow-[0_8px_18px_rgba(184,137,106,0.20)] transition hover:-translate-y-0.5 hover:bg-[#8E7464] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSaving ? "저장 중" : "저장하기"}
           </button>
@@ -652,7 +652,7 @@ function CreatePageContent() {
 
 export default function CreatePage() {
   return (
-    <Suspense fallback={<main className="create-page bg-[#fafafa]" />}>
+    <Suspense fallback={<main className="create-page" />}>
       <CreatePageContent />
     </Suspense>
   );
