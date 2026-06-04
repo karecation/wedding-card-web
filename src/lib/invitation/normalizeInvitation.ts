@@ -8,6 +8,7 @@ import {
   type MenuOrderItem,
   type TransportItem,
 } from "@/types/invitation";
+import { extractYouTubeVideoId } from "@/lib/youtube";
 
 export type NormalizedInvitation = {
   id?: string;
@@ -373,6 +374,8 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
   const locationLng = asNumber(location.lng) ?? asNumber(location.longitude) ?? asNumber(merged.longitude) ?? asNumber(venue.longitude);
   const transportTitle = asString(location.transportTitle);
   const transportDescription = asString(location.transportDescription);
+  const youtubeUrl = asString(merged.youtubeUrl);
+  const youtubeVideoId = asString(merged.youtubeVideoId) || extractYouTubeVideoId(youtubeUrl);
   const locationTransports: TransportItem[] =
     Array.isArray(merged.transports) && merged.transports.length > 0
       ? (merged.transports as TransportItem[])
@@ -452,8 +455,8 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
     },
     video: {
       enabled: menuEnabled(menu, "video", true),
-      youtubeUrl: asString(merged.youtubeUrl),
-      youtubeVideoId: asString(merged.youtubeVideoId),
+      youtubeUrl,
+      youtubeVideoId,
     },
     audio: {
       enabled: Boolean(merged.audioUrl),

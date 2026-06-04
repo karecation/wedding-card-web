@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
+  createPurchaseSessionAction,
   getInvitationByIdAction,
   getInvitationBySlugAction,
   getInvitationImagesAction,
@@ -69,10 +70,24 @@ async function loadFromSupabase(identifier: string): Promise<SavedInvitation | n
   return mergeInvitationImages(fromDb, imageRows);
 }
 
+function buildPurchaseUrl(storeUrl: string, invitationId: string, slug: string) {
+  try {
+    const url = new URL(storeUrl);
+    url.searchParams.set("invitation_id", invitationId);
+    url.searchParams.set("slug", slug);
+    return url.toString();
+  } catch {
+    const separator = storeUrl.includes("?") ? "&" : "?";
+    return `${storeUrl}${separator}invitation_id=${encodeURIComponent(invitationId)}&slug=${encodeURIComponent(slug)}`;
+  }
+}
+
 export default function DraftPreviewPage() {
   const params = useParams<{ draftId: string }>();
   const [invitation, setInvitation] = useState<NormalizedInvitation | null>(null);
   const [missing, setMissing] = useState(false);
+  const [purchaseStatus, setPurchaseStatus] = useState("");
+  const storeUrl = process.env.NEXT_PUBLIC_NAVER_STORE_PRODUCT_URL ?? "";
 
   useEffect(() => {
     if (!params.draftId) return;
@@ -176,8 +191,59 @@ export default function DraftPreviewPage() {
     return <main className="min-h-dvh bg-[#f5f2ef]" />;
   }
 
+  const invitationId = invitation.id || params.draftId;
+  const slug = invitation.slug || params.draftId;
+  const editHref = `/create?editId=${encodeURIComponent(invitationId)}`;
+  const purchaseUrl = storeUrl ? buildPurchaseUrl(storeUrl, invitationId, slug) : "";
+
+  const handlePurchaseClick = async () => {
+    if (!purchaseUrl) return;
+
+    console.log("[Purchase click]", { invitationId, slug });
+    setPurchaseStatus("구매 페이지로 이동합니다. 주문 메모에 청첩장 코드를 입력해주세요.");
+
+    try {
+      await createPurchaseSessionAction({
+        invitationId,
+        slug,
+        naverProductUrl: storeUrl,
+      });
+    } catch (error) {
+      console.warn("[Purchase session create failed on client]", { error });
+    } finally {
+      console.log("[Purchase redirect]", { url: purchaseUrl });
+      window.location.href = purchaseUrl;
+    }
+  };
+
   return (
     <main className="min-h-dvh bg-[#f5f2ef] px-0 py-0 sm:px-5 sm:py-8">
+      <div className="sticky top-0 z-20 border-b border-[#eaded5] bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
+        <div className="mx-auto flex max-w-[430px] flex-col gap-3">
+          <div className="flex gap-2">
+            <Link
+              href={editHref}
+              className="flex h-10 flex-1 items-center justify-center rounded-[6px] border border-[#d9c7bc] bg-white text-[13px] font-semibold text-[#4d3b33]"
+            >
+              수정하기
+            </Link>
+            <button
+              type="button"
+              onClick={handlePurchaseClick}
+              disabled={!purchaseUrl}
+              className="flex h-10 flex-1 items-center justify-center rounded-[6px] bg-[#2f2825] px-3 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-[#c9beb8]"
+            >
+              구매하기
+            </button>
+          </div>
+          <p className="text-center text-[11px] leading-5 text-[#8a7a70]">
+            {purchaseUrl
+              ? `구매 후 주문 메모에 청첩장 코드 ${slug}를 입력해주세요.`
+              : "NEXT_PUBLIC_NAVER_STORE_PRODUCT_URL을 설정하면 구매하기 버튼을 사용할 수 있습니다."}
+          </p>
+          {purchaseStatus && <p className="text-center text-[11px] leading-5 text-[#a06a4a]">{purchaseStatus}</p>}
+        </div>
+      </div>
       <div className="mx-auto max-w-[430px] bg-white shadow-[0_16px_40px_rgba(68,50,40,0.08)] sm:overflow-hidden sm:rounded-[24px]">
         <InvitationRenderer invitation={invitation} mode="public" />
       </div>

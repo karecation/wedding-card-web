@@ -11,6 +11,7 @@ import RsvpSection from "@/components/invitation/RsvpSection";
 import ShareFooter from "@/components/invitation/ShareFooter";
 import { getPhotoQuoteSrc } from "@/lib/invitation/getImageSrc";
 import { normalizeInvitation, type NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
+import { getYouTubeEmbedUrl } from "@/lib/youtube";
 import type { MenuSectionId } from "@/types/invitation";
 
 type RsvpForm = {
@@ -42,6 +43,9 @@ function sectionDivider() {
 
 function VideoSection({ invitation }: { invitation: NormalizedInvitation }) {
   if (!invitation.video.enabled || !invitation.video.youtubeVideoId) return null;
+  const embedUrl = getYouTubeEmbedUrl(invitation.video.youtubeVideoId);
+  if (!embedUrl) return null;
+  console.log("[Video render]", { embedUrl });
   return (
     <section className="px-7 py-12">
       <div className="text-center">
@@ -51,7 +55,7 @@ function VideoSection({ invitation }: { invitation: NormalizedInvitation }) {
       </div>
       <div className="mt-8 aspect-video overflow-hidden rounded-[12px] bg-black">
         <iframe
-          src={`https://www.youtube.com/embed/${invitation.video.youtubeVideoId}`}
+          src={embedUrl}
           title="웨딩 동영상"
           className="h-full w-full"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -88,6 +92,7 @@ function QuoteSection({ invitation }: { invitation: NormalizedInvitation }) {
 
 function AudioSection({ invitation }: { invitation: NormalizedInvitation }) {
   if (!invitation.audio.url) return null;
+  console.log("[Audio render]", { hasAudioUrl: Boolean(invitation.audio.url) });
   return (
     <section className="px-7 py-7">
       <audio src={invitation.audio.url} controls className="w-full" />

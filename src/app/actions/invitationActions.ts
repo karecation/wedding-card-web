@@ -6,6 +6,27 @@ import { createSupabaseAdminClient, hasSupabaseServerConfig } from "@/lib/supaba
 import type { UploadResult } from "@/lib/upload";
 import type { InvitationData, SavedInvitation } from "@/types/invitation";
 
+export type InvitationHistoryItem = {
+  id: string;
+  slug: string;
+  groomName: string;
+  brideName: string;
+  weddingDate: string;
+  weddingTime: string;
+  venueName: string;
+  hallName: string;
+  updatedAt: string;
+  isPublished: boolean;
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function asString(value: unknown, fallback = "") {
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
 function toDbPayload(invitation: SavedInvitation) {
   const location = invitation.location ?? {
     venueName: invitation.venueName,
@@ -87,6 +108,89 @@ function fromDbPayload(row: Record<string, unknown>): SavedInvitation {
   };
 }
 
+export async function listInvitationHistoryAction(): Promise<InvitationHistoryItem[]> {
+  console.log("[History load start]");
+
+  if (!hasSupabaseServerConfig()) {
+    console.warn("[History load failed]", { error: "missing Supabase server config" });
+    return [];
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("invitations")
+    .select("id, slug, settings, wedding_date, wedding_time, venue, updated_at, is_published")
+    .order("updated_at", { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.warn("[History load failed]", { error: error.message });
+    throw new Error(error.message);
+  }
+
+  const items = (data ?? []).map((row) => {
+    const settings = asRecord(row.settings);
+    const location = asRecord(settings.location);
+    const venue = asRecord(row.venue);
+
+    return {
+      id: String(row.id),
+      slug: String(row.slug),
+      groomName: asString(settings.groomName, "신랑"),
+      brideName: asString(settings.brideName, "신부"),
+      weddingDate: asString(settings.weddingDate) || asString(row.wedding_date),
+      weddingTime: asString(settings.weddingTime) || asString(row.wedding_time),
+      venueName: asString(location.venueName) || asString(settings.venueName) || asString(venue.name),
+      hallName: asString(location.hallName) || asString(settings.venueHall) || asString(venue.hall),
+      updatedAt: asString(row.updated_at),
+      isPublished: Boolean(row.is_published),
+    };
+  });
+
+  console.log("[History invitations loaded]", { count: items.length });
+  return items;
+}
+
+export async function createPurchaseSessionAction({
+  invitationId,
+  slug,
+  naverProductUrl,
+}: {
+  invitationId: string;
+  slug: string;
+  naverProductUrl: string;
+}) {
+  console.log("[Purchase session create start]", { invitationId, slug });
+
+  if (!hasSupabaseServerConfig()) {
+    console.warn("[Purchase session skipped]", { reason: "missing Supabase server config", invitationId, slug });
+    return { id: "", source: "local" as const };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const safeInvitationId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invitationId)
+    ? invitationId
+    : null;
+  const { data, error } = await supabase
+    .from("purchase_sessions")
+    .insert({
+      invitation_id: safeInvitationId,
+      slug,
+      status: "purchase_clicked",
+      naver_product_url: naverProductUrl,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.warn("[Purchase session create failed]", { message: error.message, invitationId, slug });
+    throw new Error(error.message);
+  }
+
+  console.log("[Purchase session create success]", { purchaseSessionId: data.id });
+  return { id: String(data.id), source: "supabase" as const };
+}
+
 async function syncRelatedTables(invitation: SavedInvitation) {
   const supabase = createSupabaseAdminClient();
 
@@ -139,6 +243,7 @@ async function syncRelatedTables(invitation: SavedInvitation) {
         totalRows: imageRows.length,
         galleryRows: galleryRows.length,
       });
+      console.log("[Invitation image rows insert success]", { count: imageRows.length });
     }
   } else {
     console.warn("[Invitation images insert skipped]", {
@@ -160,6 +265,7 @@ async function syncRelatedTables(invitation: SavedInvitation) {
       autoplay: invitation.audioAutoplay,
     });
     if (audioInsertErr) console.error("[syncRelatedTables] invitation_audio insert failed", { message: audioInsertErr.message });
+    else console.log("[Invitation audio row insert success]", { hasAudioUrl: Boolean(invitation.audioUrl), hasYoutubeUrl: Boolean(invitation.youtubeUrl) });
   }
 
   const { error: bankDeleteErr } = await supabase.from("bank_accounts").delete().eq("invitation_id", invitation.id);

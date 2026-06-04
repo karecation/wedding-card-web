@@ -107,6 +107,9 @@ export async function uploadInvitationImages(
         fileType: upload.file.type,
         fileSize: upload.file.size,
       });
+      if (uploadType === "audio") {
+        console.log("[Audio upload start]", { id: upload.id, fileType: upload.file.type, fileSize: upload.file.size });
+      }
 
       const formData = new FormData();
       formData.append("file", upload.file);
@@ -116,6 +119,7 @@ export async function uploadInvitationImages(
 
       const result = await uploadInvitationFileAction(formData);
       console.log("[Storage upload success]", { rawType: upload.type, type: uploadType, publicUrl: result.publicUrl });
+      if (uploadType === "audio") console.log("[Audio upload success]", { url: result.publicUrl });
       return result;
     }),
   );

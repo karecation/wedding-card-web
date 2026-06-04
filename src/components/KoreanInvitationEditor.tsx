@@ -730,6 +730,7 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
             onChange={(event) => {
               const url = event.target.value;
               const videoId = extractYouTubeVideoId(url);
+              console.log("[Video url parsed]", { valid: Boolean(videoId), videoId });
               patch({ youtubeUrl: url, youtubeVideoId: videoId, youtubeError: url && !videoId ? "올바른 YouTube URL을 입력해주세요." : "" });
             }}
             placeholder="https://www.youtube.com/watch?v=..."

@@ -1,9 +1,8 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getInvitationBySlugAction, saveInvitationAction } from "@/app/actions/invitationActions";
+import { getInvitationByIdAction, getInvitationBySlugAction, saveInvitationAction } from "@/app/actions/invitationActions";
 import KoreanInvitationEditor from "@/components/KoreanInvitationEditor";
 import KoreanInvitationPreview from "@/components/KoreanInvitationPreview";
 import PreviewErrorBoundary from "@/components/invitation/PreviewErrorBoundary";
@@ -190,16 +189,57 @@ function cleanupOldInvitationDrafts({ maxDrafts = 3 }: { maxDrafts?: number } = 
       if (key?.startsWith("invitation-draft-")) keys.push(key);
     }
     if (keys.length <= maxDrafts) return;
-    keys.slice(0, keys.length - maxDrafts).forEach((key) => window.localStorage.removeItem(key));
+    const removedKeys = keys.slice(0, keys.length - maxDrafts);
+    removedKeys.forEach((key) => window.localStorage.removeItem(key));
+    console.log("[Local draft cleanup]", { removedKeys });
   } catch {
     // localStorage 접근 불가 시 무시
   }
 }
 
+function cleanupLocalDrafts({ reason, keepDraftId }: { reason: string; keepDraftId?: string }) {
+  try {
+    const removedKeys: string[] = [];
+    const keepKey = keepDraftId ? `invitation-draft-${keepDraftId}` : "";
+
+    if (window.localStorage.getItem(storageKey)) {
+      window.localStorage.removeItem(storageKey);
+      removedKeys.push(storageKey);
+    }
+
+    for (let i = window.localStorage.length - 1; i >= 0; i--) {
+      const key = window.localStorage.key(i);
+      if (!key?.startsWith("invitation-draft-") || key === keepKey) continue;
+      window.localStorage.removeItem(key);
+      removedKeys.push(key);
+    }
+
+    console.log("[Local draft cleanup]", { reason, removedKeys });
+  } catch (error) {
+    console.warn("[Local draft cleanup failed]", { reason, error });
+  }
+}
+
+function revokeObjectUrls(invitation: InvitationData, uploads: PendingUpload[]) {
+  const urls = new Set<string>();
+  uploads.forEach((upload) => {
+    if (upload.previewUrl?.startsWith("blob:")) urls.add(upload.previewUrl);
+  });
+  const gallerySource = invitation.gallery?.images?.length ? invitation.gallery.images : invitation.galleryItems;
+  gallerySource?.forEach((image) => {
+    if (image.previewUrl?.startsWith("blob:")) urls.add(image.previewUrl);
+  });
+  [invitation.coverImage, invitation.introImage, invitation.quoteImage, invitation.kakaoThumbnailUrl, invitation.urlThumbnailUrl, invitation.audioUrl]
+    .filter((url): url is string => Boolean(url?.startsWith("blob:")))
+    .forEach((url) => urls.add(url));
+
+  urls.forEach((url) => URL.revokeObjectURL(url));
+  if (urls.size > 0) console.log("[Create reset]", { reason: "object-url-revoked", count: urls.size });
+}
+
 function saveLocalInvitation(invitation: SavedInvitation) {
   try {
     const localInvitation = sanitizeInvitationForLocalStorage(invitation);
-    safeLocalStorageSet(storageKey, localInvitation);
 
     const raw = window.localStorage.getItem(collectionKey);
     const rawList = raw ? (JSON.parse(raw) as SavedInvitation[]) : [];
@@ -236,8 +276,56 @@ type DraftEnvelope = {
   slug: string;
   invitationId: string;
   savedAt: string;
-  data: SavedInvitation;
+  data: SavedInvitation | null;
 };
+
+function parseDraft(raw: string): DraftEnvelope | null {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && "data" in parsed) return parsed as DraftEnvelope;
+    return null;
+  } catch (error) {
+    console.warn("[Create draft parse failed]", { error });
+    return null;
+  }
+}
+
+async function loadInvitationByIdentifier(identifier: string): Promise<SavedInvitation | null> {
+  const byId = await getInvitationByIdAction(identifier);
+  if (byId) return byId;
+
+  const bySlug = await getInvitationBySlugAction(identifier);
+  if (bySlug) return bySlug;
+
+  try {
+    const raw = window.localStorage.getItem(collectionKey);
+    const list = raw ? (JSON.parse(raw) as SavedInvitation[]) : [];
+    return list.find((item) => item.id === identifier || item.slug === identifier) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadDraftInvitation(draftId: string): Promise<SavedInvitation | null> {
+  const fromDb = await loadInvitationByIdentifier(draftId);
+  if (fromDb) return fromDb;
+
+  const raw = window.localStorage.getItem(`invitation-draft-${draftId}`);
+  const draft = raw ? parseDraft(raw) : null;
+  if (!draft) return null;
+
+  if (draft.invitationId) {
+    const byId = await loadInvitationByIdentifier(draft.invitationId);
+    if (byId) return byId;
+  }
+
+  if (draft.slug) {
+    const bySlug = await loadInvitationByIdentifier(draft.slug);
+    if (bySlug) return bySlug;
+  }
+
+  return draft.data ?? null;
+}
 
 function saveDraft(invitation: SavedInvitation, previewId = invitation.id || invitation.slug || createId("preview")): string {
   const draftId = previewId;
@@ -292,7 +380,7 @@ function saveDraft(invitation: SavedInvitation, previewId = invitation.id || inv
     draftId,
     slug: envelope.slug,
     invitationId: envelope.invitationId,
-    hasGallery: envelope.data.galleryItems.length > 0,
+    hasGallery: (envelope.data?.galleryItems.length ?? 0) > 0,
   });
 
   return draftId;
@@ -301,7 +389,8 @@ function saveDraft(invitation: SavedInvitation, previewId = invitation.id || inv
 function CreatePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const editingSlug = searchParams.get("slug");
+  const draftId = searchParams.get("draftId");
+  const editId = searchParams.get("editId") || searchParams.get("edit") || searchParams.get("slug");
   const [invitation, setInvitation] = useState<InvitationData>(() => prepareInitialInvitation(emptyInvitationData));
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -309,42 +398,31 @@ function CreatePageContent() {
 
   useEffect(() => {
     const loadInvitation = async () => {
-      if (editingSlug) {
-        const fromSupabase = await getInvitationBySlugAction(editingSlug);
-        if (fromSupabase) {
-          setInvitation(prepareInitialInvitation({ ...emptyInvitationData, ...fromSupabase }));
-          return;
-        }
-
-        const raw = window.localStorage.getItem(collectionKey);
-        const list = raw ? (JSON.parse(raw) as SavedInvitation[]) : [];
-        const local = list.find((item) => item.slug === editingSlug);
-        if (local) {
-          setInvitation(prepareInitialInvitation({ ...emptyInvitationData, ...local }));
-          return;
-        }
+      if (draftId) {
+        console.log("[Create init]", { mode: "draft", draftId });
+        const draft = await loadDraftInvitation(draftId);
+        setInvitation(prepareInitialInvitation({ ...emptyInvitationData, ...(draft ?? {}) }));
+        return;
       }
 
-      const savedInvitation = window.localStorage.getItem(storageKey);
-      if (!savedInvitation) return;
-      try {
-        setInvitation(prepareInitialInvitation({ ...emptyInvitationData, ...JSON.parse(savedInvitation) }));
-      } catch {
-        window.localStorage.removeItem(storageKey);
+      if (editId) {
+        console.log("[Create init]", { mode: "edit", editId });
+        const loaded = await loadInvitationByIdentifier(editId);
+        setInvitation(prepareInitialInvitation({ ...emptyInvitationData, ...(loaded ?? {}) }));
+        return;
       }
+
+      console.log("[Create init]", { mode: "new" });
+      console.log("[Create reset]", { reason: "new-create" });
+      cleanupLocalDrafts({ reason: "new-create" });
+      setInvitation(prepareInitialInvitation(emptyInvitationData));
     };
 
     loadInvitation();
-  }, [editingSlug]);
+  }, [draftId, editId]);
 
   const handleChange = (nextInvitation: InvitationData) => {
-    setInvitation(nextInvitation); // React state는 blob/dataUrl 포함 (live preview용)
-    try {
-      // localStorage에는 base64/blob 제거 후 저장 (quota 방지)
-      safeLocalStorageSet(storageKey, stripHeavyImageFields(nextInvitation));
-    } catch {
-      // quota 초과 시 UI는 영향 없음 (React state 유지됨)
-    }
+    setInvitation(nextInvitation);
   };
 
   const handlePendingUpload = (upload: PendingUpload) => {
@@ -488,6 +566,8 @@ function CreatePageContent() {
 
       const previewId = savedInvitation.id || savedInvitation.slug;
       const draftId = saveDraft(savedInvitation, previewId);
+      revokeObjectUrls(invitation, pendingUploads);
+      cleanupLocalDrafts({ reason: "after-save", keepDraftId: draftId });
       console.log("[Invitation saved]", { id: savedInvitation.id, slug: savedInvitation.slug });
       console.log("[Saved invitation data images]", {
         hasMainImageUrl: Boolean(savedInvitation.coverImage || savedInvitation.introImage),
@@ -524,13 +604,9 @@ function CreatePageContent() {
     >
       <header className="create-header">
         <div className="mx-auto flex h-full w-full max-w-[1080px] items-center justify-between px-4">
-          <div className="flex min-w-0 items-center gap-7">
-            <Link href="/" className="shrink-0 text-[15px] font-bold tracking-[0.18em] text-[#222]">
-              SAVE THE DATE
-            </Link>
-            <Link href="/create" className="whitespace-nowrap text-[13px] font-medium text-[#333]">
-              모바일 청첩장
-            </Link>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-[#c78372]">INVITATION BUILDER</p>
+            <p className="truncate text-[13px] text-[#5d524b]">모바일 청첩장 제작</p>
           </div>
           <button
             type="button"
