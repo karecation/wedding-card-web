@@ -54,6 +54,8 @@ function IntroMedia({
         <img
           src={src}
           alt="대표 사진"
+          loading="lazy"
+          decoding="async"
           className="h-full w-full object-cover"
           onLoad={onLoad}
           onError={onError}
@@ -177,6 +179,8 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
           <img
             src={mainImageSrc}
             alt="대표 사진"
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover"
             onLoad={handleLoad}
             onError={handleError}

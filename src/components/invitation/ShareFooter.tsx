@@ -8,14 +8,16 @@ type ShareFooterProps = {
   title: string;
   description: string;
   imageUrl?: string;
+  slug?: string;
 };
 
-function getCurrentShareUrl() {
+function getCurrentShareUrl(slug?: string) {
   if (typeof window === "undefined") return "";
+  if (slug) return `${window.location.origin}/invitation/${encodeURIComponent(slug)}`;
   return window.location.href;
 }
 
-export default function ShareFooter({ title, description, imageUrl }: ShareFooterProps) {
+export default function ShareFooter({ title, description, imageUrl, slug }: ShareFooterProps) {
   const [message, setMessage] = useState("");
   const [isSharing, setIsSharing] = useState(false);
 
@@ -24,7 +26,7 @@ export default function ShareFooter({ title, description, imageUrl }: ShareFoote
   };
 
   const copy = async () => {
-    const url = getCurrentShareUrl();
+    const url = getCurrentShareUrl(slug);
     if (!url) {
       setMessage("공유할 주소를 확인할 수 없습니다.");
       clearMessageSoon();
@@ -37,7 +39,7 @@ export default function ShareFooter({ title, description, imageUrl }: ShareFoote
   };
 
   const shareToKakao = async () => {
-    const webUrl = getCurrentShareUrl();
+    const webUrl = getCurrentShareUrl(slug);
     if (!webUrl) {
       setMessage("공유할 청첩장 주소를 확인할 수 없습니다.");
       return;

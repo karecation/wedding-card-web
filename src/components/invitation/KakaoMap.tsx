@@ -92,6 +92,7 @@ export default function KakaoMap({ venueName, address, lat, lng, height = 260 }:
   const hasAppKey = Boolean(appKey);
   const hasCoords = isFiniteNumber(lat) && isFiniteNumber(lng);
   const [fallbackReason, setFallbackReason] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     console.log("[KakaoMap env]", { hasAppKey });
@@ -103,6 +104,13 @@ export default function KakaoMap({ venueName, address, lat, lng, height = 260 }:
 
   useEffect(() => {
     let cancelled = false;
+    let timerStarted = false;
+
+    const endTimer = () => {
+      if (!timerStarted) return;
+      console.timeEnd("[KAKAO_MAP_LOAD]");
+      timerStarted = false;
+    };
 
     const renderMap = (mapLat: number, mapLng: number) => {
       if (cancelled || !containerRef.current || !window.kakao?.maps) return;
@@ -113,12 +121,16 @@ export default function KakaoMap({ venueName, address, lat, lng, height = 260 }:
       const marker = new kakao.Marker({ position: center });
       marker.setMap(map);
       setFallbackReason(null);
+      setIsLoading(false);
+      endTimer();
     };
 
     const showFallback = (reason: string) => {
       if (cancelled) return;
       console.log("[KakaoMap fallback]", { reason });
       setFallbackReason(reason);
+      setIsLoading(false);
+      endTimer();
     };
 
     if (!hasAppKey || !appKey) {
@@ -130,6 +142,11 @@ export default function KakaoMap({ venueName, address, lat, lng, height = 260 }:
       showFallback("missing address");
       return;
     }
+
+    console.time("[KAKAO_MAP_LOAD]");
+    timerStarted = true;
+    setIsLoading(true);
+    setFallbackReason(null);
 
     loadKakaoMaps(appKey)
       .then(() => {
@@ -167,17 +184,18 @@ export default function KakaoMap({ venueName, address, lat, lng, height = 260 }:
 
     return () => {
       cancelled = true;
+      endTimer();
     };
   }, [address, appKey, hasAppKey, hasCoords, lat, lng]);
 
   const style = { height: typeof height === "number" ? `${height}px` : height };
 
   if (!hasAppKey || (!hasCoords && !address?.trim())) {
-    const reason = !hasAppKey ? "missing app key" : "missing address";
-    console.log("[KakaoMap fallback]", { reason });
     return (
       <div className="grid w-full place-items-center px-6 text-center text-[12px] leading-6 text-[#9d8a80]" style={style}>
-        {!hasCoords && !address?.trim() ? "주소를 입력하면 지도가 표시됩니다." : "지도를 불러올 수 없습니다. 카카오 지도 API 키 또는 주소를 확인해주세요."}
+        {!hasCoords && !address?.trim()
+          ? "주소를 입력하면 지도가 표시됩니다."
+          : "지도를 불러올 수 없습니다. 카카오 지도 API 키 또는 주소를 확인해주세요."}
       </div>
     );
   }
@@ -185,6 +203,11 @@ export default function KakaoMap({ venueName, address, lat, lng, height = 260 }:
   return (
     <div className="relative w-full" style={style}>
       <div ref={containerRef} className="h-full w-full" aria-label={venueName ? `${venueName} 지도` : "예식장 지도"} />
+      {isLoading && !fallbackReason && (
+        <div className="absolute inset-0 grid place-items-center bg-[#f1eee9] px-6 text-center text-[12px] leading-6 text-[#9d8a80]">
+          지도 불러오는 중
+        </div>
+      )}
       {fallbackReason && (
         <div className="absolute inset-0 grid place-items-center bg-[#f1eee9] px-6 text-center text-[12px] leading-6 text-[#9d8a80]">
           지도를 불러올 수 없습니다. 카카오 지도 API 키 또는 주소를 확인해주세요.

@@ -73,6 +73,7 @@ export default function GallerySection({
           src={src}
           alt={image.caption || `갤러리 사진 ${index + 1}`}
           loading="lazy"
+          decoding="async"
           className="h-full w-full object-cover"
           onError={() => console.error("[GallerySection image failed]", { index, src: src.slice(0, 80) })}
         />

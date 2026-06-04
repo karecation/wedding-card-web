@@ -224,7 +224,7 @@ export default function InvitationRenderer(props: Props) {
       <AudioSection invitation={invitation} />
       <div>
         {sectionDivider()}
-        <ShareFooter title={shareTitle} description={shareDescription} imageUrl={shareImageUrl} />
+        <ShareFooter title={shareTitle} description={shareDescription} imageUrl={shareImageUrl} slug={invitation.slug} />
       </div>
     </article>
   );

@@ -9,7 +9,7 @@ import PreviewErrorBoundary from "@/components/invitation/PreviewErrorBoundary";
 import { generateSlug } from "@/lib/generateSlug";
 import { uploadInvitationImages } from "@/lib/images/uploadInvitationImages";
 import { sanitizeInvitationForStorage } from "@/lib/invitation/sanitizeInvitationForStorage";
-import { LOCAL_INVITATIONS_STORAGE_KEY, readLocalInvitation, saveLocalInvitationRecord } from "@/lib/localInvitations";
+import { canCreateLocalInvitation, getWeddingSessionId, LOCAL_INVITATIONS_STORAGE_KEY, readLocalInvitation, saveLocalInvitationRecord } from "@/lib/localInvitations";
 import type { PendingUpload } from "@/lib/upload";
 import { emptyInvitationData, type InvitationData, type SavedInvitation } from "@/types/invitation";
 
@@ -239,7 +239,7 @@ function revokeObjectUrls(invitation: InvitationData, uploads: PendingUpload[]) 
 }
 
 function saveLocalInvitation(invitation: SavedInvitation) {
-  saveLocalInvitationRecord(invitation);
+  return saveLocalInvitationRecord(invitation);
 }
 
 // Draft envelope: preview 페이지에서 Supabase 재조회를 위해 slug/invitationId를 함께 저장
@@ -405,10 +405,22 @@ function CreatePageContent() {
 
   const handleSave = async () => {
     if (isSaving) return;
+    console.time("[SAVE_INVITATION]");
     setIsSaving(true);
     setStatusMessage("저장 중입니다...");
 
-    let savedInvitation = createSavedInvitation(normalizeLocationFields(invitation));
+    let savedInvitation: SavedInvitation = {
+      ...createSavedInvitation(normalizeLocationFields(invitation)),
+      sessionId: getWeddingSessionId(),
+    } as SavedInvitation;
+    const isEditingExisting = Boolean(invitation.id || readLocalInvitation(savedInvitation.id) || readLocalInvitation(savedInvitation.slug));
+
+    if (!isEditingExisting && !canCreateLocalInvitation()) {
+      setStatusMessage("최대 3개까지만 저장할 수 있습니다. 기존 청첩장을 삭제한 후 다시 저장해주세요.");
+      console.timeEnd("[SAVE_INVITATION]");
+      setIsSaving(false);
+      return;
+    }
 
     const hasSupabaseEnv = Boolean(
       process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -520,13 +532,21 @@ function CreatePageContent() {
         const result = await saveInvitationAction(savedInvitation);
         savedInvitation = result.invitation;
         console.log("[DB save success]", { slug: savedInvitation.slug, id: savedInvitation.id, source: result.source });
+        if ("ok" in result && !result.ok) {
+          setStatusMessage("임시 저장되었습니다. 배포 공유용으로는 DB 연결이 필요합니다.");
+          console.warn("[DB save fallback]", { error: result.error });
+        }
       } catch (dbError) {
         console.warn("[DB save failed]", { error: dbError instanceof Error ? dbError.message : dbError });
         setStatusMessage("DB 저장 실패 — 로컬 미리보기로 저장합니다.");
       }
 
       setStatusMessage("미리보기 생성 중...");
-      saveLocalInvitation(savedInvitation);
+      const localSaved = saveLocalInvitation(savedInvitation);
+      if (!localSaved) {
+        setStatusMessage("최대 3개까지만 저장할 수 있습니다. 기존 청첩장을 삭제한 후 다시 저장해주세요.");
+        return;
+      }
       setInvitation(savedInvitation);
       setPendingUploads([]);
 
@@ -557,6 +577,7 @@ function CreatePageContent() {
       console.error("[Save failed]", error);
       setStatusMessage("저장에 실패했습니다. 다시 시도해 주세요.");
     } finally {
+      console.timeEnd("[SAVE_INVITATION]");
       setIsSaving(false);
     }
   };

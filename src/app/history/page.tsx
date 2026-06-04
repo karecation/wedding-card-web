@@ -3,20 +3,19 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { listInvitationHistoryAction, type InvitationHistoryItem } from "@/app/actions/invitationActions";
-import { listLocalInvitations } from "@/lib/localInvitations";
-import type { SavedInvitation } from "@/types/invitation";
+import { deleteInvitationAction, listInvitationHistoryAction, type InvitationHistoryItem } from "@/app/actions/invitationActions";
+import { deleteLocalInvitation, getWeddingSessionId, listLocalInvitationSummaries, type LocalInvitationSummary } from "@/lib/localInvitations";
 
-function toHistoryItem(invitation: SavedInvitation): InvitationHistoryItem {
+function toHistoryItem(invitation: LocalInvitationSummary): InvitationHistoryItem {
   return {
     id: invitation.id,
     slug: invitation.slug,
     groomName: invitation.groomName || "신랑",
     brideName: invitation.brideName || "신부",
     weddingDate: invitation.weddingDate,
-    weddingTime: invitation.weddingTime || `${invitation.weddingPeriod} ${invitation.weddingHour} ${invitation.weddingMinute}`,
-    venueName: invitation.location?.venueName || invitation.venueName,
-    hallName: invitation.location?.hallName || invitation.venueHall,
+    weddingTime: invitation.weddingTime,
+    venueName: invitation.venueName,
+    hallName: invitation.hallName,
     updatedAt: invitation.updatedAt,
     isPublished: invitation.isPublished,
   };
@@ -73,6 +72,17 @@ export default function HistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const handleDelete = async (item: InvitationHistoryItem) => {
+    const ok = window.confirm("이 청첩장을 삭제할까요? 삭제 후에는 복구할 수 없습니다.");
+    if (!ok) return;
+
+    deleteLocalInvitation(item.id);
+    setItems((current) => current.filter((entry) => entry.id !== item.id && entry.slug !== item.slug));
+
+    const result = await deleteInvitationAction(item.id);
+    if (!result.ok) console.warn("[History delete DB failed]", { id: item.id, error: result.error });
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -81,25 +91,26 @@ export default function HistoryPage() {
       setIsLoading(true);
       setErrorMessage("");
 
+      const localInvitations = listLocalInvitationSummaries().map(toHistoryItem);
+      if (localInvitations.length > 0) {
+        setItems(localInvitations);
+        console.log("[HISTORY] invitations:", localInvitations);
+      }
+
       try {
-        const remoteInvitations = await listInvitationHistoryAction();
-        const localInvitations = listLocalInvitations().map(toHistoryItem);
-        const invitations = mergeHistoryItems(remoteInvitations, localInvitations);
+        const remoteInvitations = await listInvitationHistoryAction(getWeddingSessionId());
         if (!active) return;
+        const invitations = mergeHistoryItems(remoteInvitations, localInvitations);
         setItems(invitations);
         console.log("[History invitations loaded]", { count: invitations.length });
         console.log("[HISTORY] invitations:", invitations);
       } catch (error) {
         if (!active) return;
-        const localInvitations = listLocalInvitations().map(toHistoryItem);
-        if (localInvitations.length > 0) {
-          setItems(localInvitations);
-          console.log("[HISTORY] invitations:", localInvitations);
-          return;
+        if (localInvitations.length === 0) {
+          const message = error instanceof Error ? error.message : "제작 내역을 불러오지 못했습니다.";
+          setErrorMessage(message);
+          console.warn("[History load failed]", { error: message });
         }
-        const message = error instanceof Error ? error.message : "제작 내역을 불러오지 못했습니다.";
-        setErrorMessage(message);
-        console.warn("[History load failed]", { error: message });
       } finally {
         if (active) setIsLoading(false);
       }
@@ -139,7 +150,7 @@ export default function HistoryPage() {
           </div>
         ) : null}
 
-        {isLoading ? (
+        {isLoading && items.length === 0 ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 3 }).map((_, index) => (
               <div key={index} className="h-56 animate-pulse rounded-[8px] border border-[#eadbd0] bg-white/70" />
@@ -163,7 +174,7 @@ export default function HistoryPage() {
           </div>
         ) : null}
 
-        {!isLoading && items.length > 0 ? (
+        {items.length > 0 ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {items.map((item) => {
               const previewHref = `/preview/${item.id}`;
@@ -172,8 +183,16 @@ export default function HistoryPage() {
               return (
                 <article
                   key={item.id}
-                  className="group flex min-h-64 flex-col justify-between rounded-[8px] border border-[#eadbd0] bg-white/86 p-5 shadow-[0_18px_45px_rgba(76,55,43,0.08)] transition hover:-translate-y-1 hover:border-[#d8b9aa] hover:shadow-[0_22px_55px_rgba(76,55,43,0.12)]"
+                  className="group relative flex min-h-64 flex-col justify-between rounded-[8px] border border-[#eadbd0] bg-white/86 p-5 shadow-[0_18px_45px_rgba(76,55,43,0.08)] transition hover:-translate-y-1 hover:border-[#d8b9aa] hover:shadow-[0_22px_55px_rgba(76,55,43,0.12)]"
                 >
+                  <button
+                    type="button"
+                    aria-label="청첩장 삭제"
+                    onClick={() => handleDelete(item)}
+                    className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full border border-[#eadbd0] bg-white text-sm font-semibold text-[#a96355] transition hover:bg-[#fff7ef]"
+                  >
+                    ×
+                  </button>
                   <div>
                     <div className="mb-5 flex items-start justify-between gap-3">
                       <div>
