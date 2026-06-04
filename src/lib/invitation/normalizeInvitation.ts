@@ -9,7 +9,7 @@ import {
   type TransportItem,
 } from "@/types/invitation";
 import { extractYouTubeVideoId } from "@/lib/youtube";
-import { resolveIntroLayout, type IntroLayoutId } from "@/lib/invitation/introLayouts";
+import { resolveIntroLayout, THEME_PRESETS, type IntroLayoutId } from "@/lib/invitation/introLayouts";
 
 export type NormalizedInvitation = {
   id?: string;
@@ -441,10 +441,11 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
       accentColor: asString(merged.themeColor) || asString(theme.themeColor, "#c9897a"),
       fontFamily: normalizeFont(asString(merged.fontFamily) || asString(theme.fontFamily, "gowun-dodum")),
       fontWeight: normalizeWeight(asString(merged.fontWeight) || asString(theme.fontWeight)),
-      // introTemplate 우선 — 없으면 templateMood가 레이아웃명일 때만 fallback
+      // introTemplate 우선. templateMood 폴백은 테마 preset ID(modern/minimal/…)가
+      // 아닌 경우(= 구 레이아웃명)에만 허용 — 에디터 selectedIntroLayout 로직과 동일하게 맞춤
       introLayout: normalizeIntroLayout(
         asString(merged.introTemplate) ||
-        asString(merged.templateMood),
+        (THEME_PRESETS.some((t) => t.id === asString(merged.templateMood)) ? "" : asString(merged.templateMood))
       ),
       frameStyle: normalizeFrame(asString(merged.introShape) || asString(theme.introShape)),
       visualEffect: "none",

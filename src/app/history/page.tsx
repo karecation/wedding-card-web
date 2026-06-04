@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { deleteInvitationAction, listInvitationHistoryAction, type InvitationHistoryItem } from "@/app/actions/invitationActions";
-import { deleteLocalInvitation, getWeddingSessionId, listLocalInvitationSummaries, type LocalInvitationSummary } from "@/lib/localInvitations";
+import { deleteLocalInvitation, getDeletedInvitationIds, getWeddingSessionId, listLocalInvitationSummaries, type LocalInvitationSummary } from "@/lib/localInvitations";
 
 function toHistoryItem(invitation: LocalInvitationSummary): InvitationHistoryItem {
   return {
@@ -98,7 +98,12 @@ export default function HistoryPage() {
       try {
         const remoteInvitations = await listInvitationHistoryAction(getWeddingSessionId());
         if (!active) return;
-        const invitations = mergeHistoryItems(remoteInvitations, localInvitations);
+        // 로컬에서 삭제된 항목은 DB 삭제 실패 여부와 관계없이 표시하지 않음
+        const deletedIds = getDeletedInvitationIds();
+        const filteredRemote = remoteInvitations.filter(
+          (item) => !deletedIds.has(item.id) && !deletedIds.has(item.slug),
+        );
+        const invitations = mergeHistoryItems(filteredRemote, localInvitations);
         setItems(invitations);
       } catch (error) {
         if (!active) return;

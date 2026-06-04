@@ -44,6 +44,9 @@ export function sanitizeInvitationForStorage(invitation: SavedInvitation): Saved
     transportDescription: invitation.location?.transportDescription || firstTransport?.description || "",
   };
 
+  const audioUrl = publicUrlOnly(invitation.audioUrl);
+  const musicUrl = publicUrlOnly(invitation.musicUrl);
+
   return {
     ...invitation,
     venueName: location.venueName,
@@ -57,6 +60,8 @@ export function sanitizeInvitationForStorage(invitation: SavedInvitation): Saved
     quoteImage,
     kakaoThumbnailUrl,
     urlThumbnailUrl,
+    audioUrl,
+    musicUrl,
     gallery: {
       ...(invitation.gallery ?? emptyInvitationData.gallery),
       enabled: invitation.gallery?.enabled ?? galleryImages.length > 0,

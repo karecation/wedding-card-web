@@ -58,14 +58,16 @@ function normalizeLocationFields(data: InvitationData): InvitationData {
   };
 }
 
-function prepareInitialInvitation(data: InvitationData): InvitationData {
+function prepareInitialInvitation(data: InvitationData, isEdit = false): InvitationData {
   const nextData = normalizeLocationFields(data);
   return {
     ...nextData,
     gallery: nextData.gallery ?? emptyInvitationData.gallery,
     menuOrder: nextData.menuOrder.map((item) => ({
       ...item,
-      enabled: item.enabled && hasOptionalContent(nextData, item.id),
+      // 신규 생성 시에만 콘텐츠 유무로 enabled 필터링.
+      // 수정 시에는 저장된 enabled 값 그대로 유지 (계좌/공지 등 비어있어도 켜둔 경우 보존).
+      enabled: isEdit ? item.enabled : (item.enabled && hasOptionalContent(nextData, item.id)),
     })),
   };
 }
@@ -367,14 +369,14 @@ function CreatePageContent() {
       if (draftId) {
         console.log("[Create init]", { mode: "draft", draftId });
         const draft = await loadDraftInvitation(draftId);
-        setInvitation(prepareInitialInvitation({ ...emptyInvitationData, ...(draft ?? {}) }));
+        setInvitation(prepareInitialInvitation({ ...emptyInvitationData, ...(draft ?? {}) }, true));
         return;
       }
 
       if (editId) {
         console.log("[Create init]", { mode: "edit", editId });
         const loaded = await loadInvitationByIdentifier(editId);
-        setInvitation(prepareInitialInvitation({ ...emptyInvitationData, ...(loaded ?? {}) }));
+        setInvitation(prepareInitialInvitation({ ...emptyInvitationData, ...(loaded ?? {}) }, true));
         return;
       }
 

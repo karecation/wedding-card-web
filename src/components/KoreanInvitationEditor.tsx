@@ -449,8 +449,8 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         const { previewUrl, dataUrl } = preview;
         onPendingUpload?.({ id, type, file, previewUrl, dataUrl });
 
-        if (type === "main") update("coverImage", previewUrl);
-        if (type === "intro") update("introImage", previewUrl);
+        if (type === "main") patch({ coverImage: previewUrl, introImage: previewUrl });
+        if (type === "intro") patch({ introImage: previewUrl, coverImage: previewUrl });
         if (type === "quote" || type === "photoQuote" || type === "photo-quote") update("quoteImage", previewUrl);
         if (type === "kakao_thumbnail" || type === "kakaoThumbnail") update("kakaoThumbnailUrl", previewUrl);
         if (type === "url_thumbnail" || type === "urlThumbnail" || type === "shareThumbnail" || type === "share") update("urlThumbnailUrl", previewUrl);

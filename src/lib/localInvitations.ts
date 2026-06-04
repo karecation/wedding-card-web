@@ -56,7 +56,7 @@ function parseLegacyList(raw: string | null): SavedInvitation[] {
   return Array.isArray(parsed) ? (parsed.filter(Boolean) as SavedInvitation[]) : [];
 }
 
-function getDeletedInvitationIds() {
+export function getDeletedInvitationIds() {
   if (typeof window === "undefined") return new Set<string>();
   return new Set(parseJson<string[]>(window.localStorage.getItem(LOCAL_DELETED_INVITATIONS_KEY), []));
 }
