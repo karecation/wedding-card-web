@@ -358,7 +358,7 @@ export const emptyInvitationData: InvitationData = {
   audioTitle: "",
   defaultMusic: "A",
   audioAutoplay: true,
-  templateMood: "모던",
+  templateMood: "moment",
   themeColor: "#c9897a",
   fontFamily: "gowun-dodum",
   fontWeight: "regular",

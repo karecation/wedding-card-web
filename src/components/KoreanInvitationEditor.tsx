@@ -6,10 +6,9 @@ import { searchKakaoLocation, type LocationSearchResult } from "@/lib/kakaoMaps"
 import {
   asIntroTemplate,
   getIntroImageSlotPreset,
+  getIntroThemeConfig,
   INTRO_LAYOUT_OPTIONS,
   resolveIntroLayout,
-  THEME_PRESETS,
-  resolveThemeId,
 } from "@/lib/invitation/introLayouts";
 import { extractYouTubeVideoId } from "@/lib/youtube";
 import { validateUploadFile, type PendingUpload } from "@/lib/upload";
@@ -19,7 +18,6 @@ import type {
   GalleryImage,
   ImageUploadType,
   InvitationData,
-  IntroTemplate,
   LocationData,
   MenuSectionId,
   TransportItem,
@@ -201,7 +199,7 @@ function UploadBox({
       <button type="button" onClick={openFileDialog} className="grid h-full min-h-[118px] w-full cursor-pointer place-items-center text-center">
         {imageUrl && type !== "audio" ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt="" className="h-full max-h-[180px] w-full rounded-[4px] object-cover" />
+          <img src={imageUrl} alt="" className="h-full w-full rounded-[4px] object-cover" />
         ) : (
           <span className="space-y-1 leading-5">
             <span className="block font-semibold text-[#f06f52]">{isGallery ? "사진을 클릭하거나 여기로 끌어다 놓으세요" : label}</span>
@@ -220,6 +218,56 @@ function UploadBox({
           event.target.value = "";
         }}
       />
+    </div>
+  );
+}
+
+function IntroLayoutPreviewCard({ layout }: { layout: string }) {
+  const config = getIntroThemeConfig(layout);
+  const isStart = config.id === "start";
+  const isTogether = config.id === "together";
+  const isGoodday = config.id === "goodday";
+
+  return (
+    <div className={`w-full max-w-[360px] rounded-[6px] border border-[#ebe3dc] p-4 ${config.thumbnailClassName}`}>
+      <div className="mx-auto max-w-[180px] rounded-[4px] bg-white/70 px-3 py-4 text-center shadow-[0_8px_24px_rgba(80,55,43,0.06)]">
+        {isStart ? (
+          <div className="mb-3 flex items-center justify-between text-[10px] text-[#2f2825]">
+            <span>신랑</span>
+            <span className="text-[15px] leading-none text-[#2f2825]">06 / 05</span>
+            <span>신부</span>
+          </div>
+        ) : isTogether ? (
+          <div className="mb-3 text-[12px] leading-5 text-[#b77866]">
+            <span>신랑</span>
+            <span className="mx-2 inline-block h-px w-4 bg-[#d9b7aa] align-middle" />
+            <span>신부</span>
+          </div>
+        ) : isGoodday ? (
+          <div className="mb-3 space-y-1 text-[#2f2825]">
+            <p className="text-[12px]">신랑 & 신부</p>
+            <p className="text-[8px] text-[#8b766c]">2026. 06. 05</p>
+          </div>
+        ) : (
+          <div className="mb-3 space-y-1 text-[#2f2825]">
+            <p className="text-[13px] tracking-[0.1em]">26 | 06 | 05</p>
+            <p className="text-[7px] tracking-[0.28em] text-[#8b766c]">FRIDAY</p>
+          </div>
+        )}
+        <div className={`${config.thumbnailImageClassName} rounded-[3px] bg-[#d9d6d2]`} />
+        <div className="mt-3 space-y-1 text-[8px] text-[#75635b]">
+          {!isStart && !isTogether && !isGoodday && <p>신랑 | 신부</p>}
+          <p>예식일 · 예식장소</p>
+          {isGoodday && <p className="pt-1 text-[#b77866]">초대합니다</p>}
+        </div>
+      </div>
+      <div className="mt-3">
+        <p className="text-[13px] font-semibold text-[#2f2825]">
+          {config.label}
+          {config.badge && <span className="ml-1 align-super text-[9px] text-[#d46f5d]">{config.badge}</span>}
+        </p>
+        <p className="mt-1 text-[11px] leading-5 text-[#8b766c]">{config.hint}</p>
+      </div>
     </div>
   );
 }
@@ -282,17 +330,10 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
 
   const galleryImages = orderedGalleryImages(data);
   const galleryEnabled = data.menuOrder.find((item) => item.id === "gallery")?.enabled ?? data.gallery?.enabled ?? false;
-  // 인트로 레이아웃: introTemplate 우선
-  // backward-compat: introTemplate 없으면 templateMood가 옛 레이아웃 이름인지 확인 후 fallback
-  const selectedIntroLayout = resolveIntroLayout(
-    data.introTemplate ||
-    // templateMood가 새 테마 ID가 아닌 경우에만 레이아웃 fallback으로 사용
-    (THEME_PRESETS.some((t) => t.id === data.templateMood) ? undefined : data.templateMood) ||
-    undefined,
-  );
+  // 인트로 테마는 저장/미리보기/수정하기 모두 같은 layout key를 기준으로 동작한다.
+  const selectedIntroLayout = resolveIntroLayout(data.introTemplate || data.templateMood);
   const selectedIntroSlot = getIntroImageSlotPreset(selectedIntroLayout);
-  // 테마: templateMood에서 themeId 결정 (새 theme ID 또는 한국어 레이아웃명 → modern 기본)
-  const selectedThemeId = resolveThemeId(data.templateMood);
+  const selectedIntroTheme = getIntroThemeConfig(selectedIntroLayout);
 
   const update = <K extends keyof InvitationData>(key: K, value: InvitationData[K]) => onChange({ ...data, [key]: value });
   const patch = (next: Partial<InvitationData>) => onChange({ ...data, ...next });
@@ -380,20 +421,16 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
       setIsSearchingLocation(false);
     }
   };
-  /** 테마만 변경 — 인트로 레이아웃은 건드리지 않음 */
-  const updateTheme = (themeId: string) => {
-    const preset = THEME_PRESETS.find((t) => t.id === themeId) ?? THEME_PRESETS[0];
+  const updateIntroTheme = (themeValue: string) => {
+    const layout = resolveIntroLayout(themeValue);
+    const preset = getIntroThemeConfig(layout);
     patch({
-      templateMood: preset.id,
+      templateMood: layout,
+      introTemplate: asIntroTemplate(layout),
       themeColor: preset.themeColor,
       fontFamily: preset.fontFamily,
       fontWeight: preset.fontWeight,
     });
-  };
-  /** 인트로 레이아웃만 변경 — 테마(templateMood)는 건드리지 않음 */
-  const updateIntroLayout = (template: IntroTemplate) => {
-    const layout = resolveIntroLayout(template);
-    patch({ introTemplate: asIntroTemplate(layout) });
   };
   const toggle = (id: string) => setOpenSections((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   const sectionProps = (id: string) => ({ open: openSections.includes(id), onToggle: () => toggle(id) });
@@ -572,22 +609,19 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
 
       <Section title="테마" {...sectionProps("theme")}>
         <Field label="테마">
-          <div className="flex flex-wrap gap-2">
-            {THEME_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => updateTheme(preset.id)}
-                className={`rounded-[5px] border px-3 py-1.5 text-left text-[12px] transition ${
-                  selectedThemeId === preset.id
-                    ? "border-[#222] bg-white text-[#111]"
-                    : "border-[#e5e5e5] bg-[#f6f6f6] text-[#999] hover:text-[#555]"
-                }`}
-              >
-                <span className="block font-medium">{preset.label}</span>
-                <span className="block text-[10px] text-[#aaa]">{preset.hint}</span>
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-3">
+            <Select
+              value={selectedIntroLayout}
+              onChange={(event) => updateIntroTheme(event.target.value)}
+              className="h-10 w-[170px] border-[#111] text-[14px] font-medium"
+            >
+              {INTRO_LAYOUT_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.selectLabel}
+                </option>
+              ))}
+            </Select>
+            <span className="text-[11px] leading-5 text-[#999]">{selectedIntroTheme.mood}</span>
           </div>
         </Field>
         <Field label="컬러">
@@ -634,21 +668,7 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
 
       <Section title="인트로" {...sectionProps("intro")}>
         <Field label="레이아웃">
-          <div className="grid grid-cols-2 gap-2 min-[560px]:grid-cols-3">
-            {INTRO_LAYOUT_OPTIONS.map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                onClick={() => updateIntroLayout(template.id)}
-                className={`h-[112px] min-w-0 rounded-[4px] border p-2 text-left transition ${selectedIntroLayout === template.id ? "border-[#111] bg-white" : "border-[#ededed] bg-[#f7f7f7]"}`}
-              >
-                <div className="mb-2 h-[45px] rounded bg-[#ddd]" />
-                <p className="truncate text-[12px] leading-[17px] text-[#111]">{template.label}</p>
-                <p className="mt-0.5 truncate text-[10px] leading-[14px] text-[#999]">{template.hint}</p>
-                <span className="mt-1 block h-[3px] w-6 rounded-full bg-[#e6d8cf]" />
-              </button>
-            ))}
-          </div>
+          <IntroLayoutPreviewCard layout={selectedIntroLayout} />
         </Field>
         <Field label="프레임">
           <div className="flex flex-wrap gap-2">

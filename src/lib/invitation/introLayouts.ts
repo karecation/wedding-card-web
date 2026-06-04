@@ -7,7 +7,10 @@ export type IntroLayoutId = "moment" | "minimal" | "start" | "together" | "goodd
 export type IntroLayoutOption = {
   id: IntroLayoutId;
   label: string;
+  selectLabel: string;
+  badge?: string;
   hint: string;
+  mood: string;
 };
 
 export type IntroImageSlotPreset = {
@@ -18,12 +21,93 @@ export type IntroImageSlotPreset = {
 };
 
 export const INTRO_LAYOUT_OPTIONS: IntroLayoutOption[] = [
-  { id: "moment",   label: "세로사진",   hint: "상단 날짜 + 세로 대표 사진" },
-  { id: "minimal",  label: "이름강조",   hint: "여백 중심, 이름 강조" },
-  { id: "start",    label: "날짜강조",   hint: "이름 좌우 + 날짜 중앙" },
-  { id: "together", label: "프레임형",   hint: "카드형 프레임 배치" },
-  { id: "goodday",  label: "초대문구형", hint: "사진 + 하단 초대 문구" },
+  {
+    id: "moment",
+    label: "모먼트",
+    selectLabel: "모먼트 NEW",
+    badge: "NEW",
+    hint: "상단 날짜 + 세로 대표 사진",
+    mood: "따뜻한 로즈톤",
+  },
+  {
+    id: "minimal",
+    label: "미니멀",
+    selectLabel: "미니멀 NEW",
+    badge: "NEW",
+    hint: "넓은 여백 + 큰 대표 사진",
+    mood: "깔끔한 베이지",
+  },
+  {
+    id: "start",
+    label: "시작",
+    selectLabel: "시작",
+    hint: "이름 좌우 + 날짜 중앙",
+    mood: "균형 잡힌 시작점",
+  },
+  {
+    id: "together",
+    label: "동행",
+    selectLabel: "동행",
+    hint: "이름 먼저 + 프레임 사진",
+    mood: "부드러운 코랄",
+  },
+  {
+    id: "goodday",
+    label: "좋은날",
+    selectLabel: "좋은날",
+    hint: "정보 먼저 + 종이 질감",
+    mood: "차분한 초대장",
+  },
 ];
+
+export const INTRO_THEME_CONFIG: Record<IntroLayoutId, IntroLayoutOption & {
+  themeColor: string;
+  fontFamily: string;
+  fontWeight: "light" | "regular" | "medium";
+  thumbnailClassName: string;
+  thumbnailImageClassName: string;
+}> = {
+  moment: {
+    ...INTRO_LAYOUT_OPTIONS[0],
+    themeColor: "#c9897a",
+    fontFamily: "gowun-dodum",
+    fontWeight: "regular",
+    thumbnailClassName: "bg-[#fbf8f5]",
+    thumbnailImageClassName: "mx-auto mt-2 h-[58px] w-[42px]",
+  },
+  minimal: {
+    ...INTRO_LAYOUT_OPTIONS[1],
+    themeColor: "#b78f72",
+    fontFamily: "pretendard",
+    fontWeight: "light",
+    thumbnailClassName: "bg-[#fffdf9]",
+    thumbnailImageClassName: "mx-auto mt-3 h-[55px] w-[50px]",
+  },
+  start: {
+    ...INTRO_LAYOUT_OPTIONS[2],
+    themeColor: "#a87563",
+    fontFamily: "gowun-batang",
+    fontWeight: "regular",
+    thumbnailClassName: "bg-white",
+    thumbnailImageClassName: "mx-auto mt-2 h-[54px] w-[70px]",
+  },
+  together: {
+    ...INTRO_LAYOUT_OPTIONS[3],
+    themeColor: "#c9897a",
+    fontFamily: "gowun-batang",
+    fontWeight: "regular",
+    thumbnailClassName: "bg-[#f7f1ed]",
+    thumbnailImageClassName: "mx-auto mt-2 h-[58px] w-[46px] border-[4px] border-white",
+  },
+  goodday: {
+    ...INTRO_LAYOUT_OPTIONS[4],
+    themeColor: "#b78f72",
+    fontFamily: "gowun-batang",
+    fontWeight: "regular",
+    thumbnailClassName: "bg-[radial-gradient(circle_at_1px_1px,rgba(120,92,72,0.10)_1px,transparent_0)] bg-[length:8px_8px]",
+    thumbnailImageClassName: "mx-auto mt-3 h-[46px] w-[72px]",
+  },
+};
 
 export const INTRO_IMAGE_SLOT_PRESETS: Record<IntroLayoutId, IntroImageSlotPreset> = {
   moment: {
@@ -63,6 +147,7 @@ export function resolveIntroLayout(value?: string | null): IntroLayoutId {
   if (!clean) return "moment";
   if (
     clean === "moment" ||
+    clean === "modern" ||
     clean === "basicDate" ||
     clean === "basic" ||
     clean.includes("모던") ||
@@ -82,18 +167,23 @@ export function resolveIntroLayout(value?: string | null): IntroLayoutId {
     return "start";
   if (
     clean === "together" ||
+    clean === "companion" ||
     clean === "saveTheDate" ||
     clean.includes("동행") ||
     clean.includes("세이브") ||
     clean.includes("프레임")
   )
     return "together";
-  if (clean === "goodday" || clean.includes("좋은날") || clean.includes("초대문구")) return "goodday";
+  if (clean === "goodday" || clean === "good-day" || clean.includes("좋은날") || clean.includes("초대문구")) return "goodday";
   return "moment";
 }
 
 export function getIntroImageSlotPreset(layout: string | null | undefined) {
   return INTRO_IMAGE_SLOT_PRESETS[resolveIntroLayout(layout)];
+}
+
+export function getIntroThemeConfig(layout: string | null | undefined) {
+  return INTRO_THEME_CONFIG[resolveIntroLayout(layout)];
 }
 
 export function asIntroTemplate(layout: IntroLayoutId): IntroTemplate {

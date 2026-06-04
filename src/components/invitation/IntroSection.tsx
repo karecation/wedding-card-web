@@ -138,14 +138,11 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
 
   if (layout === "minimal") {
     return (
-      <section className="px-9 pb-12 pt-14 text-center">
-        <p className="text-[10px] uppercase tracking-[0.36em] text-[var(--invite-accent-soft)]">{invitation.intro.subText}</p>
-        <h1 className="mx-auto mt-7 max-w-[260px] text-[24px] font-light leading-[1.45] tracking-[0.02em] text-[#30231c]">
-          {invitation.intro.headline}
-        </h1>
+      <section className="px-9 pb-14 pt-16 text-center">
+        <DateBlock date={date} />
         {imageSlot}
-        <div className="mx-auto mt-8 h-px w-12 bg-[var(--invite-border)]" />
-        <p className="mt-8 whitespace-nowrap text-[18px] font-light tracking-[-0.01em] text-[#251b17]">{names}</p>
+        <div className="mx-auto mt-10 h-px w-10 bg-[var(--invite-border)]" />
+        <p className="mt-9 whitespace-nowrap text-[17px] font-light tracking-[0.02em] text-[#251b17]">{names}</p>
         <WeddingLine date={date} time={invitation.basic.weddingTime} venue={venue} />
       </section>
     );
@@ -172,9 +169,12 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
 
   if (layout === "together") {
     return (
-      <section className="px-7 pb-12 pt-10 text-center">
-        <p className="text-[10px] uppercase tracking-[0.34em] text-[var(--invite-accent-soft)]">{invitation.intro.subText}</p>
-        <p className="mt-5 whitespace-nowrap text-[20px] font-light tracking-[0.02em] text-[#251b17]">{names}</p>
+      <section className="bg-[#f7f1ed] px-7 pb-12 pt-12 text-center">
+        <div className="space-y-2 text-[20px] font-light tracking-[0.04em] text-[var(--invite-accent)]">
+          <p>{invitation.basic.groomName}</p>
+          <div className="mx-auto h-px w-5 bg-[var(--invite-accent)] opacity-50" />
+          <p>{invitation.basic.brideName}</p>
+        </div>
         {imageSlot}
         <h1 className="mx-auto mt-8 max-w-[260px] text-[18px] font-light leading-[1.7] text-[#5e4035]">
           {invitation.intro.headline}
