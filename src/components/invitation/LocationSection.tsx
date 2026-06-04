@@ -13,13 +13,17 @@ function mapLink(provider: "naver" | "kakao" | "tmap", venueName: string, addres
 export default function LocationSection({ invitation }: { invitation: NormalizedInvitation }) {
   if (!invitation.location.enabled) return null;
 
-  const venue = [invitation.location.venueName, invitation.location.hallName || invitation.location.hall].filter(Boolean).join(" ");
+  const venueName = invitation.location.venueName;
+  const hallName = invitation.location.hallName || invitation.location.hall;
+  const address = invitation.location.address;
+  const hasCoords = typeof invitation.location.lat === "number" && typeof invitation.location.lng === "number";
+  const hasMapTarget = Boolean(address || hasCoords);
   const visibleTransport = invitation.location.transportations.filter((item) => item.title || item.body);
 
   console.log("[LocationSection data]", {
-    venueName: invitation.location.venueName,
-    hallName: invitation.location.hallName || invitation.location.hall,
-    address: invitation.location.address,
+    venueName,
+    hallName,
+    address,
     lat: invitation.location.lat,
     lng: invitation.location.lng,
   });
@@ -33,33 +37,44 @@ export default function LocationSection({ invitation }: { invitation: Normalized
       </div>
 
       <div className="mt-8 text-center">
-        <p className="whitespace-nowrap text-[15px] text-[var(--invite-text)]">{venue || "예식장 정보를 입력해 주세요"}</p>
-        {invitation.location.address && <p className="mt-2 text-[12px] leading-6 text-[var(--invite-muted)]">{invitation.location.address}</p>}
+        {venueName && <p className="text-[15px] text-[var(--invite-text)]">{venueName}</p>}
+        {hallName && <p className="mt-1 text-[14px] text-[var(--invite-text)]">{hallName}</p>}
+        {address ? (
+          <p className="mt-2 text-[12px] leading-6 text-[var(--invite-muted)]">{address}</p>
+        ) : (
+          <p className="mt-2 text-[12px] leading-6 text-[var(--invite-muted)]">예식 장소 정보가 아직 입력되지 않았습니다.</p>
+        )}
       </div>
 
-      {invitation.location.showMap && (
+      {invitation.location.showMap && hasMapTarget ? (
         <div className="mt-6 overflow-hidden rounded-[12px] border border-[var(--invite-border)] bg-[#f1eee9]">
           <KakaoMap
-            venueName={invitation.location.venueName}
-            address={invitation.location.address}
+            venueName={venueName}
+            address={address}
             lat={invitation.location.lat}
             lng={invitation.location.lng}
             height={260}
           />
         </div>
+      ) : (
+        <div className="mt-6 grid min-h-[160px] place-items-center rounded-[12px] border border-dashed border-[var(--invite-border)] bg-white/50 px-6 text-center text-[12px] leading-6 text-[var(--invite-muted)]">
+          주소를 입력하면 지도가 표시됩니다.
+        </div>
       )}
 
-      <div className="mt-5 grid grid-cols-3 gap-2">
-        <a href={mapLink("naver", venue, invitation.location.address)} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--invite-border)] py-2 text-center text-[12px] text-[var(--invite-text)]">
-          네이버 지도
-        </a>
-        <a href={mapLink("kakao", venue, invitation.location.address)} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--invite-border)] py-2 text-center text-[12px] text-[var(--invite-text)]">
-          카카오 내비
-        </a>
-        <a href={mapLink("tmap", venue, invitation.location.address)} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--invite-border)] py-2 text-center text-[12px] text-[var(--invite-text)]">
-          티맵
-        </a>
-      </div>
+      {hasMapTarget && (
+        <div className="mt-5 grid grid-cols-3 gap-2">
+          <a href={mapLink("naver", venueName, address)} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--invite-border)] py-2 text-center text-[12px] text-[var(--invite-text)]">
+            네이버 지도
+          </a>
+          <a href={mapLink("kakao", venueName, address)} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--invite-border)] py-2 text-center text-[12px] text-[var(--invite-text)]">
+            카카오 내비
+          </a>
+          <a href={mapLink("tmap", venueName, address)} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--invite-border)] py-2 text-center text-[12px] text-[var(--invite-text)]">
+            티맵
+          </a>
+        </div>
+      )}
 
       {visibleTransport.length > 0 && (
         <div className="mt-8 space-y-4">

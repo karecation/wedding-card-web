@@ -7,74 +7,65 @@ import type { NormalizedInvitation } from "@/lib/invitation/normalizeInvitation"
 const weekdaysEn = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 const weekdaysKo = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
 
+type IntroLayout = NormalizedInvitation["design"]["introLayout"];
+
+type ImageSlotConfig = {
+  wrap: string;
+  frame: string;
+  placeholder: string;
+};
+
+const imageSlotByLayout: Record<IntroLayout, ImageSlotConfig> = {
+  moment: {
+    wrap: "mt-9",
+    frame: "aspect-[3/4] w-full max-w-[310px]",
+    placeholder: "세로형 대표 사진",
+  },
+  minimal: {
+    wrap: "mt-10",
+    frame: "aspect-[4/5] w-full max-w-[292px]",
+    placeholder: "미니멀 대표 사진",
+  },
+  start: {
+    wrap: "mt-8",
+    frame: "aspect-[5/6] w-full max-w-[326px]",
+    placeholder: "시작 테마 사진",
+  },
+  together: {
+    wrap: "mt-9 rounded-[18px] bg-white/80 p-3 shadow-[0_14px_36px_rgba(80,55,43,0.10)]",
+    frame: "aspect-[4/5] w-full max-w-[300px]",
+    placeholder: "프레임 대표 사진",
+  },
+  goodday: {
+    wrap: "mt-8 px-2",
+    frame: "aspect-[4/3] w-full max-w-[340px]",
+    placeholder: "좋은날 대표 사진",
+  },
+};
+
 function getDate(date: string) {
   const parsed = date ? new Date(`${date}T00:00:00`) : new Date("2026-05-19T00:00:00");
   return Number.isNaN(parsed.getTime()) ? new Date("2026-05-19T00:00:00") : parsed;
 }
 
-function frameClass(style: NormalizedInvitation["design"]["frameStyle"]) {
+function frameClass(style: NormalizedInvitation["design"]["frameStyle"], layout: IntroLayout) {
+  if (layout === "together") return "rounded-[10px]";
+  if (layout === "goodday") return "rounded-[3px] shadow-[0_10px_22px_rgba(88,63,49,0.10)]";
   if (style === "arch") return "rounded-t-full";
   if (style === "ellipse") return "rounded-[50%]";
   if (style === "frame") return "rounded-[6px] border-[10px] border-white shadow-[0_8px_24px_rgba(70,50,40,0.12)]";
   if (style === "fill") return "rounded-none";
-  return "rounded-[4px]";
+  return layout === "minimal" ? "rounded-[12px]" : "rounded-[4px]";
 }
 
-function Placeholder() {
-  return (
-    <div className="grid h-full place-items-center text-[#bbb]">
-      <svg width="54" height="54" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-        <rect x="8" y="10" width="32" height="28" rx="2" stroke="currentColor" strokeWidth="2" />
-        <path d="M10 34 19 25l6 5 7-8 6 8" stroke="currentColor" strokeWidth="2" />
-        <path d="M8 8 40 40" stroke="currentColor" strokeWidth="2" />
-      </svg>
-    </div>
-  );
-}
-
-function IntroMedia({
-  invitation,
-  src,
-  onError,
-  onLoad,
-  showImage,
-}: {
-  invitation: NormalizedInvitation;
-  src: string;
-  onError: () => void;
-  onLoad: () => void;
-  showImage: boolean;
-}) {
-  return (
-    <div
-      className={`intro-media-frame relative mx-auto mt-8 aspect-[3/4] w-full max-w-[310px] overflow-hidden bg-[#e8e5e1] ${frameClass(invitation.design.frameStyle)}`}
-    >
-      {showImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt="대표 사진"
-          loading="lazy"
-          decoding="async"
-          className="h-full w-full object-cover"
-          onLoad={onLoad}
-          onError={onError}
-        />
-      ) : (
-        <Placeholder />
-      )}
-    </div>
-  );
-}
-
-function DateBlock({ date }: { date: Date }) {
+function DateBlock({ date, compact = false }: { date: Date; compact?: boolean }) {
   const yy = String(date.getFullYear()).slice(2);
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");
 
   return (
     <>
-      <div className="text-[25px] font-light tracking-[0.08em] text-[#30231c]">
+      <div className={`${compact ? "text-[18px]" : "text-[25px]"} font-light tracking-[0.08em] text-[#30231c]`}>
         {yy} | {mm} | {dd}
       </div>
       <div className="mt-1.5 text-[11px] tracking-[0.34em] text-[#5e4035]">{weekdaysEn[date.getDay()]}</div>
@@ -82,141 +73,185 @@ function DateBlock({ date }: { date: Date }) {
   );
 }
 
-export default function IntroSection({ invitation }: { invitation: NormalizedInvitation }) {
-  const date = getDate(invitation.basic.weddingDate);
-  const venue = [invitation.basic.venueName, invitation.basic.venueHall].filter(Boolean).join(" ");
-  const names = `${invitation.basic.groomName}  |  ${invitation.basic.brideName}`;
+function Placeholder({ label }: { label: string }) {
+  return (
+    <div className="grid h-full place-items-center bg-[#e8e5e1] text-center text-[#b6aca5]">
+      <div>
+        <svg className="mx-auto" width="54" height="54" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <rect x="8" y="10" width="32" height="28" rx="2" stroke="currentColor" strokeWidth="2" />
+          <path d="M10 34 19 25l6 5 7-8 6 8" stroke="currentColor" strokeWidth="2" />
+          <path d="M8 8 40 40" stroke="currentColor" strokeWidth="2" />
+        </svg>
+        <p className="mt-3 text-[11px] tracking-[0.08em]">{label}</p>
+      </div>
+    </div>
+  );
+}
 
-  // 대표사진 src를 다양한 데이터 형식에서 추출
-  const mainImageSrc = getMainImageSrc(invitation);
-  const [imageError, setImageError] = useState(false);
-  const showImage = Boolean(mainImageSrc) && !imageError;
+function IntroImageSlot({
+  layout,
+  frameStyle,
+  imageUrl,
+  showImage,
+  onLoad,
+  onError,
+}: {
+  layout: IntroLayout;
+  frameStyle: NormalizedInvitation["design"]["frameStyle"];
+  imageUrl: string;
+  showImage: boolean;
+  onLoad: () => void;
+  onError: () => void;
+}) {
+  const config = imageSlotByLayout[layout];
 
-  // src가 바뀌면 에러 상태 리셋 (예: 다른 invitation으로 전환 시)
-  useEffect(() => {
-    setImageError(false);
-  }, [mainImageSrc]);
-
-  if (typeof window !== "undefined") {
-    const inv = invitation as unknown as Record<string, unknown>;
-    const introAny = inv.intro as Record<string, unknown> | undefined;
-    console.log("[IntroSection props debug]", {
-      receivedKeys: invitation ? Object.keys(invitation) : [],
-      introKeys: introAny ? Object.keys(introAny) : [],
-      directMainImageUrl: inv.mainImageUrl,
-      directIntroImageUrl: inv.introImageUrl,
-      directCoverImage: inv.coverImage,
-      introMainImageUrl: introAny?.mainImageUrl,
-      introMainImagePreviewUrl: introAny?.mainImagePreviewUrl,
-      finalMainImageSrc: mainImageSrc,
-    });
-    console.log("[Intro image src]", {
-      mainImageSrc,
-      srcType: mainImageSrc.startsWith("https://")
-        ? "https"
-        : mainImageSrc.startsWith("data:")
-          ? "base64"
-          : mainImageSrc
-            ? "other"
-            : "empty",
-      layout: invitation.design.introLayout,
-      showImage,
-      imageError,
-    });
-  }
-
-  const handleLoad = () => {
-    console.log("[Intro image loaded]", { mainImageSrc });
-  };
-
-  const handleError = () => {
-    console.error("[Intro image failed]", { mainImageSrc });
-    setImageError(true);
-  };
-
-  if (invitation.design.introLayout === "photoFirst") {
-    return (
-      <section className="px-7 pb-10 pt-7 text-center">
-        <IntroMedia
-          invitation={invitation}
-          src={mainImageSrc}
-          showImage={showImage}
-          onLoad={handleLoad}
-          onError={handleError}
-        />
-        <div className="mt-8">
-          <DateBlock date={date} />
-        </div>
-        <p className="mt-7 whitespace-nowrap text-[17px] font-light tracking-[-0.01em] text-[#251b17]">{names}</p>
-        <p className="mt-4 whitespace-nowrap text-[13px] leading-6 text-[#75635b]">
-          {date.getFullYear()}년 {date.getMonth() + 1}월 {date.getDate()}일 {weekdaysKo[date.getDay()]} {invitation.basic.weddingTime}
-        </p>
-        <p className="whitespace-nowrap text-[13px] leading-6 text-[#8b766c]">{venue}</p>
-      </section>
-    );
-  }
-
-  if (invitation.design.introLayout === "minimal") {
-    return (
-      <section className="px-9 pb-12 pt-14 text-center">
-        <p className="text-[10px] uppercase tracking-[0.36em] text-[var(--invite-accent-soft)]">{invitation.intro.subText}</p>
-        <h1 className="mx-auto mt-7 max-w-[260px] text-[24px] font-light leading-[1.45] tracking-[0.02em] text-[#30231c]">{invitation.intro.headline}</h1>
-        <div className="mx-auto mt-8 h-px w-12 bg-[var(--invite-border)]" />
-        <p className="mt-8 whitespace-nowrap text-[18px] font-light tracking-[-0.01em] text-[#251b17]">{names}</p>
-        <p className="mt-5 whitespace-nowrap text-[13px] leading-6 text-[#75635b]">
-          {date.getFullYear()}년 {date.getMonth() + 1}월 {date.getDate()}일 {weekdaysKo[date.getDay()]} {invitation.basic.weddingTime}
-        </p>
-        <p className="whitespace-nowrap text-[13px] leading-6 text-[#8b766c]">{venue}</p>
-      </section>
-    );
-  }
-
-  if (invitation.design.introLayout === "saveTheDate" && showImage) {
-    return (
-      <section className="text-center">
-        <div className={`intro-media-frame relative aspect-[3/4] w-full overflow-hidden ${frameClass(invitation.design.frameStyle)}`}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+  return (
+    <div className={`intro-image-slot mx-auto ${config.wrap}`}>
+      <div
+        className={`intro-media-frame relative mx-auto overflow-hidden bg-[#e8e5e1] ${config.frame} ${frameClass(frameStyle, layout)}`}
+      >
+        {showImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={mainImageSrc}
+            src={imageUrl}
             alt="대표 사진"
             loading="lazy"
             decoding="async"
             className="h-full w-full object-cover"
-            onLoad={handleLoad}
-            onError={handleError}
+            onLoad={onLoad}
+            onError={onError}
           />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.1)_45%,rgba(0,0,0,.5))]" />
-          <div className="absolute inset-x-0 bottom-10 px-8 text-white">
-            <p className="text-[10px] uppercase tracking-[0.34em] text-white/75">{invitation.intro.subText}</p>
-            <h1 className="mt-2 text-[22px] font-light tracking-[0.04em]">{invitation.intro.headline}</h1>
-            <p className="mt-4 whitespace-nowrap text-[15px] font-light">{names}</p>
-            <p className="mt-2 text-[12px] text-white/75">
-              {date.getFullYear()}년 {date.getMonth() + 1}월 {date.getDate()}일 {weekdaysKo[date.getDay()]} {invitation.basic.weddingTime}
-            </p>
-          </div>
-        </div>
+        ) : (
+          <Placeholder label={config.placeholder} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WeddingLine({ date, time, venue }: { date: Date; time: string; venue: string }) {
+  return (
+    <>
+      <p className="mt-5 whitespace-nowrap text-[13px] leading-6 text-[#75635b]">
+        {date.getFullYear()}년 {date.getMonth() + 1}월 {date.getDate()}일 {weekdaysKo[date.getDay()]} {time}
+      </p>
+      {venue && <p className="whitespace-nowrap text-[13px] leading-6 text-[#8b766c]">{venue}</p>}
+    </>
+  );
+}
+
+export default function IntroSection({ invitation }: { invitation: NormalizedInvitation }) {
+  const date = getDate(invitation.basic.weddingDate);
+  const layout = invitation.design.introLayout;
+  const venue = [invitation.basic.venueName, invitation.basic.venueHall].filter(Boolean).join(" ");
+  const names = `${invitation.basic.groomName}  |  ${invitation.basic.brideName}`;
+  const imageUrl = getMainImageSrc(invitation);
+  const [imageError, setImageError] = useState(false);
+  const showImage = Boolean(imageUrl) && !imageError;
+
+  useEffect(() => {
+    setImageError(false);
+  }, [imageUrl, layout]);
+
+  if (typeof window !== "undefined") {
+    console.log("[Intro layout render]", {
+      layout,
+      imageUrlType: imageUrl.startsWith("blob:")
+        ? "blob"
+        : imageUrl.startsWith("https://")
+          ? "https"
+          : imageUrl.startsWith("data:")
+            ? "base64"
+            : imageUrl
+              ? "other"
+              : "empty",
+      hasImage: Boolean(imageUrl),
+      showImage,
+    });
+  }
+
+  const handleLoad = () => console.log("[Intro image loaded]", { layout });
+  const handleError = () => {
+    console.error("[Intro image failed]", { layout, imageUrl: imageUrl.slice(0, 80) });
+    setImageError(true);
+  };
+
+  const imageSlot = (
+    <IntroImageSlot
+      layout={layout}
+      frameStyle={invitation.design.frameStyle}
+      imageUrl={imageUrl}
+      showImage={showImage}
+      onLoad={handleLoad}
+      onError={handleError}
+    />
+  );
+
+  if (layout === "minimal") {
+    return (
+      <section className="px-9 pb-12 pt-14 text-center">
+        <p className="text-[10px] uppercase tracking-[0.36em] text-[var(--invite-accent-soft)]">{invitation.intro.subText}</p>
+        <h1 className="mx-auto mt-7 max-w-[260px] text-[24px] font-light leading-[1.45] tracking-[0.02em] text-[#30231c]">
+          {invitation.intro.headline}
+        </h1>
+        {imageSlot}
+        <div className="mx-auto mt-8 h-px w-12 bg-[var(--invite-border)]" />
+        <p className="mt-8 whitespace-nowrap text-[18px] font-light tracking-[-0.01em] text-[#251b17]">{names}</p>
+        <WeddingLine date={date} time={invitation.basic.weddingTime} venue={venue} />
       </section>
     );
   }
 
-  // basic + saveTheDate(이미지 없음 fallback)
+  if (layout === "start") {
+    return (
+      <section className="px-7 pb-10 pt-8 text-center">
+        <div className="flex items-center justify-center gap-3 text-[16px] font-light text-[#30231c]">
+          <span>{invitation.basic.groomName}</span>
+          <span className="text-[12px] tracking-[0.18em] text-[var(--invite-accent-soft)]">
+            {String(date.getMonth() + 1).padStart(2, "0")} / {String(date.getDate()).padStart(2, "0")}
+          </span>
+          <span>{invitation.basic.brideName}</span>
+        </div>
+        {imageSlot}
+        <div className="mt-8">
+          <DateBlock date={date} compact />
+        </div>
+        <WeddingLine date={date} time={invitation.basic.weddingTime} venue={venue} />
+      </section>
+    );
+  }
+
+  if (layout === "together") {
+    return (
+      <section className="px-7 pb-12 pt-10 text-center">
+        <p className="text-[10px] uppercase tracking-[0.34em] text-[var(--invite-accent-soft)]">{invitation.intro.subText}</p>
+        <p className="mt-5 whitespace-nowrap text-[20px] font-light tracking-[0.02em] text-[#251b17]">{names}</p>
+        {imageSlot}
+        <h1 className="mx-auto mt-8 max-w-[260px] text-[18px] font-light leading-[1.7] text-[#5e4035]">
+          {invitation.intro.headline}
+        </h1>
+        <WeddingLine date={date} time={invitation.basic.weddingTime} venue={venue} />
+      </section>
+    );
+  }
+
+  if (layout === "goodday") {
+    return (
+      <section className="bg-[radial-gradient(circle_at_1px_1px,rgba(120,92,72,0.10)_1px,transparent_0)] bg-[length:12px_12px] px-7 pb-11 pt-10 text-center">
+        <p className="whitespace-nowrap text-[18px] font-light tracking-[-0.01em] text-[#251b17]">{names}</p>
+        <WeddingLine date={date} time={invitation.basic.weddingTime} venue={venue} />
+        {imageSlot}
+        <p className="mx-auto mt-8 max-w-[270px] text-[13px] leading-7 text-[#7a665d]">{invitation.intro.headline}</p>
+      </section>
+    );
+  }
+
   return (
     <section className="px-7 pb-10 pt-11 text-center">
       <DateBlock date={date} />
-
-      <IntroMedia
-        invitation={invitation}
-        src={mainImageSrc}
-        showImage={showImage}
-        onLoad={handleLoad}
-        onError={handleError}
-      />
-
+      {imageSlot}
       <p className="mt-9 whitespace-nowrap text-[17px] font-light tracking-[-0.01em] text-[#251b17]">{names}</p>
-      <p className="mt-5 whitespace-nowrap text-[13px] leading-6 text-[#75635b]">
-        {date.getFullYear()}년 {date.getMonth() + 1}월 {date.getDate()}일 {weekdaysKo[date.getDay()]} {invitation.basic.weddingTime}
-      </p>
-      <p className="whitespace-nowrap text-[13px] leading-6 text-[#8b766c]">{venue}</p>
+      <WeddingLine date={date} time={invitation.basic.weddingTime} venue={venue} />
     </section>
   );
 }

@@ -11,7 +11,7 @@ type ImageLike =
 export function getImageSrc(image?: ImageLike): string {
   if (!image) return "";
   if (typeof image === "string") return image;
-  return image.url || image.dataUrl || image.previewUrl || "";
+  return image.previewUrl || image.url || image.dataUrl || "";
 }
 
 // 대표사진 src 결정. 여러 데이터 형식(NormalizedInvitation, SavedInvitation,
@@ -32,11 +32,11 @@ export function getMainImageSrc(input: unknown): string {
 
   return (
     getImageSrc(intro?.mainImage as ImageLike) ||
+    (typeof intro?.mainImagePreviewUrl === "string" ? (intro.mainImagePreviewUrl as string) : "") ||
+    (typeof intro?.mainImageUrl === "string" ? (intro.mainImageUrl as string) : "") ||
     getImageSrc(inv.mainImage as ImageLike) ||
     getImageSrc(inv.introImage as ImageLike) ||
     getImageSrc(inv.coverImage as ImageLike) ||
-    (typeof intro?.mainImageUrl === "string" ? (intro.mainImageUrl as string) : "") ||
-    (typeof intro?.mainImagePreviewUrl === "string" ? (intro.mainImagePreviewUrl as string) : "") ||
     (typeof inv.mainImageUrl === "string" ? (inv.mainImageUrl as string) : "") ||
     (typeof inv.introImageUrl === "string" ? (inv.introImageUrl as string) : "") ||
     (typeof inv.coverImageUrl === "string" ? (inv.coverImageUrl as string) : "") ||

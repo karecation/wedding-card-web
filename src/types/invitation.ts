@@ -1,6 +1,14 @@
 export type TemplateMood = string;
 export type IntroShape = string;
-export type IntroTemplate = "basicDate" | "photoFirst" | "saveTheDate" | "minimal";
+export type IntroTemplate =
+  | "moment"
+  | "minimal"
+  | "start"
+  | "together"
+  | "goodday"
+  | "basicDate"
+  | "photoFirst"
+  | "saveTheDate";
 export type GalleryType = "slide" | "grid" | "masonry" | "슬라이드" | "바둑판" | "그리드" | string;
 export type ImageUploadType =
   | "main"
@@ -356,7 +364,7 @@ export const emptyInvitationData: InvitationData = {
   preventZoom: true,
   scrollEffect: true,
   introShape: "기본",
-  introTemplate: "basicDate",
+  introTemplate: "moment",
   introHeadline: "We're getting married",
   introSubText: "Save The Date",
   introTextColor: "#fff6a8",

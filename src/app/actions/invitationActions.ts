@@ -307,6 +307,11 @@ export async function saveInvitationAction(invitation: SavedInvitation) {
     coverImage: invitation.coverImage ? (invitation.coverImage.startsWith("https://") ? "https" : invitation.coverImage.startsWith("data:") ? "base64" : "other") : "없음",
     galleryCount: invitation.galleryItems?.length ?? 0,
   });
+  console.log("[DB payload image check]", {
+    coverImage: invitation.coverImage || invitation.introImage,
+    galleryCount: invitation.galleryItems?.length ?? 0,
+    galleryUrlSamples: (invitation.galleryItems ?? []).slice(0, 3).map((image) => image.url || image.previewUrl || ""),
+  });
 
   try {
     const supabase = createSupabaseAdminClient();

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import AccountSection from "@/components/invitation/AccountSection";
 import CalendarSection from "@/components/invitation/CalendarSection";
 import GallerySection from "@/components/invitation/GallerySection";
@@ -42,7 +43,9 @@ function sectionDivider() {
 }
 
 function VideoSection({ invitation }: { invitation: NormalizedInvitation }) {
-  if (!invitation.video.enabled || !invitation.video.youtubeVideoId) return null;
+  const videoUrl = invitation.video.videoUrl || "";
+  if (!invitation.video.enabled || (!invitation.video.youtubeVideoId && !videoUrl)) return null;
+  if (videoUrl) return <Mp4VideoSection videoUrl={videoUrl} />;
   const embedUrl = getYouTubeEmbedUrl(invitation.video.youtubeVideoId);
   if (!embedUrl) return null;
   console.log("[Video render]", { embedUrl });
@@ -227,5 +230,55 @@ export default function InvitationRenderer(props: Props) {
         <ShareFooter title={shareTitle} description={shareDescription} imageUrl={shareImageUrl} slug={invitation.slug} />
       </div>
     </article>
+  );
+}
+
+function Mp4VideoSection({ videoUrl }: { videoUrl: string }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!videoRef.current || hasError) return;
+        if (entry.isIntersecting) videoRef.current.play().catch(() => {});
+        else videoRef.current.pause();
+      },
+      { threshold: 0.5 },
+    );
+
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [hasError]);
+
+  return (
+    <section className="px-7 py-12">
+      <div className="text-center">
+        <p className="text-[10px] tracking-[0.34em] text-[var(--invite-accent-soft)]">VIDEO</p>
+        <h2 className="mt-2 text-[16px] font-light text-[var(--invite-text)]">동영상</h2>
+        <div className="mx-auto mt-3 h-px w-8 bg-[var(--invite-border)]" />
+      </div>
+      <div className="mt-8 aspect-video overflow-hidden rounded-[12px] bg-black">
+        {hasError ? (
+          <div className="grid h-full place-items-center px-5 text-center text-[12px] leading-6 text-white/70">
+            동영상을 불러올 수 없습니다.
+          </div>
+        ) : (
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            muted
+            playsInline
+            preload="metadata"
+            controls
+            className="h-full w-full object-cover"
+            onError={() => setHasError(true)}
+          />
+        )}
+      </div>
+    </section>
   );
 }

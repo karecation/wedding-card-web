@@ -416,7 +416,7 @@ function CreatePageContent() {
     const isEditingExisting = Boolean(invitation.id || readLocalInvitation(savedInvitation.id) || readLocalInvitation(savedInvitation.slug));
 
     if (!isEditingExisting && !canCreateLocalInvitation()) {
-      setStatusMessage("최대 3개까지만 저장할 수 있습니다. 기존 청첩장을 삭제한 후 다시 저장해주세요.");
+      setStatusMessage("한 세션에서는 최대 3개까지만 저장할 수 있습니다. 기존 청첩장을 삭제한 후 다시 저장해주세요.");
       console.timeEnd("[SAVE_INVITATION]");
       setIsSaving(false);
       return;
@@ -510,6 +510,12 @@ function CreatePageContent() {
         hasPhotoQuote: Boolean(savedInvitation.quoteImage),
         hasShareThumbnail: Boolean(savedInvitation.kakaoThumbnailUrl || savedInvitation.urlThumbnailUrl),
       });
+      console.log("[Image save check]", {
+        introMainImageUrl: savedInvitation.coverImage || savedInvitation.introImage,
+        introMainImagePreviewUrl: savedInvitation.coverImage || savedInvitation.introImage,
+        galleryCount: savedInvitation.gallery?.images?.length || savedInvitation.galleryItems.length,
+        firstGalleryUrl: savedInvitation.gallery?.images?.[0]?.url || savedInvitation.galleryItems[0]?.url,
+      });
 
       console.log("[Sanitized invitation payload]", {
         id: savedInvitation.id,
@@ -544,7 +550,7 @@ function CreatePageContent() {
       setStatusMessage("미리보기 생성 중...");
       const localSaved = saveLocalInvitation(savedInvitation);
       if (!localSaved) {
-        setStatusMessage("최대 3개까지만 저장할 수 있습니다. 기존 청첩장을 삭제한 후 다시 저장해주세요.");
+        setStatusMessage("한 세션에서는 최대 3개까지만 저장할 수 있습니다. 기존 청첩장을 삭제한 후 다시 저장해주세요.");
         return;
       }
       setInvitation(savedInvitation);

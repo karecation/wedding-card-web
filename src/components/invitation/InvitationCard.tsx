@@ -386,6 +386,14 @@ type Props = { data: InvitationData };
 export default function InvitationCard({ data }: Props) {
   const theme = getTheme(data.templateMood);
   const template: IntroTemplate = data.introTemplate || "basicDate";
+  const legacyTemplate =
+    template === "moment" || template === "basicDate"
+      ? "basicDate"
+      : template === "start" || template === "photoFirst"
+        ? "photoFirst"
+        : template === "together" || template === "goodday" || template === "saveTheDate"
+          ? "saveTheDate"
+          : "minimal";
 
   return (
     <article
@@ -393,10 +401,10 @@ export default function InvitationCard({ data }: Props) {
       style={{ backgroundColor: theme.cardBg, borderRadius: "8px" }}
     >
       {/* Template content */}
-      {template === "basicDate" && <BasicLayout data={data} theme={theme} />}
-      {template === "photoFirst" && <PhotoFirstLayout data={data} theme={theme} />}
-      {template === "saveTheDate" && <SaveTheDateLayout data={data} theme={theme} />}
-      {template === "minimal" && <MinimalLayout data={data} theme={theme} />}
+      {legacyTemplate === "basicDate" && <BasicLayout data={data} theme={theme} />}
+      {legacyTemplate === "photoFirst" && <PhotoFirstLayout data={data} theme={theme} />}
+      {legacyTemplate === "saveTheDate" && <SaveTheDateLayout data={data} theme={theme} />}
+      {legacyTemplate === "minimal" && <MinimalLayout data={data} theme={theme} />}
 
       {/* Particles float over full card */}
       <ParticleOverlay type={data.particle} />

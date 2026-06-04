@@ -30,7 +30,7 @@ export type NormalizedInvitation = {
     accentColor: string;
     fontFamily: string;
     fontWeight: "light" | "regular" | "medium";
-    introLayout: "basic" | "photoFirst" | "saveTheDate" | "minimal";
+    introLayout: "moment" | "minimal" | "start" | "together" | "goodday";
     frameStyle: "default" | "arch" | "ellipse" | "frame" | "fill";
     visualEffect: "none" | "wave" | "fog";
     particleEffect: "none" | "heart" | "snow" | "sakura" | "ginkgo";
@@ -87,6 +87,7 @@ export type NormalizedInvitation = {
     enabled: boolean;
     youtubeUrl: string;
     youtubeVideoId: string;
+    videoUrl: string;
   };
   audio: {
     enabled: boolean;
@@ -252,11 +253,12 @@ function normalizeParticle(value: string): NormalizedInvitation["design"]["parti
 }
 
 function normalizeIntroLayout(value: string): NormalizedInvitation["design"]["introLayout"] {
-  if (value === "basicDate" || value === "basic" || value.includes("기본")) return "basic";
-  if (value === "photoFirst") return "photoFirst";
-  if (value === "saveTheDate") return "saveTheDate";
+  if (value === "moment" || value === "basicDate" || value === "basic" || value.includes("모먼트") || value.includes("기본")) return "moment";
   if (value === "minimal" || value.includes("미니멀")) return "minimal";
-  return "basic";
+  if (value === "start" || value === "photoFirst" || value.includes("시작") || value.includes("사진")) return "start";
+  if (value === "together" || value === "saveTheDate" || value.includes("동행") || value.includes("세이브")) return "together";
+  if (value === "goodday" || value.includes("좋은날")) return "goodday";
+  return "moment";
 }
 
 function normalizeTransport(items: TransportItem[]) {
@@ -378,6 +380,7 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
   const transportDescription = asString(location.transportDescription);
   const youtubeUrl = asString(merged.youtubeUrl);
   const youtubeVideoId = asString(merged.youtubeVideoId) || extractYouTubeVideoId(youtubeUrl);
+  const videoUrl = asString((merged as Record<string, unknown>).videoUrl);
   const locationTransports: TransportItem[] =
     Array.isArray(merged.transports) && merged.transports.length > 0
       ? (merged.transports as TransportItem[])
@@ -459,6 +462,7 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
       enabled: menuEnabled(menu, "video", true),
       youtubeUrl,
       youtubeVideoId,
+      videoUrl,
     },
     audio: {
       enabled: Boolean(merged.audioUrl),

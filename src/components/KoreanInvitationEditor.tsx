@@ -60,10 +60,11 @@ const menuLabels: Record<MenuSectionId, string> = {
 };
 
 const introTemplates: Array<{ id: IntroTemplate; label: string; hint: string }> = [
-  { id: "basicDate", label: "기본", hint: "날짜 중심" },
-  { id: "photoFirst", label: "사진형", hint: "사진 우선" },
-  { id: "saveTheDate", label: "세이브", hint: "감성 커버" },
-  { id: "minimal", label: "미니멀", hint: "여백 중심" },
+  { id: "moment", label: "모먼트", hint: "세로 사진" },
+  { id: "minimal", label: "미니멀", hint: "넓은 여백" },
+  { id: "start", label: "시작", hint: "이름 강조" },
+  { id: "together", label: "동행", hint: "프레임 카드" },
+  { id: "goodday", label: "좋은날", hint: "종이 질감" },
 ];
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
