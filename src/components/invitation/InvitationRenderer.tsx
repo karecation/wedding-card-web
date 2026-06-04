@@ -48,7 +48,6 @@ function VideoSection({ invitation }: { invitation: NormalizedInvitation }) {
   if (videoUrl) return <Mp4VideoSection videoUrl={videoUrl} />;
   const embedUrl = getYouTubeEmbedUrl(invitation.video.youtubeVideoId);
   if (!embedUrl) return null;
-  console.log("[Video render]", { embedUrl });
   return (
     <section className="px-7 py-12">
       <div className="text-center">
@@ -95,7 +94,6 @@ function QuoteSection({ invitation }: { invitation: NormalizedInvitation }) {
 
 function AudioSection({ invitation }: { invitation: NormalizedInvitation }) {
   if (!invitation.audio.url) return null;
-  console.log("[Audio render]", { hasAudioUrl: Boolean(invitation.audio.url) });
   return (
     <section className="px-7 py-7">
       <audio src={invitation.audio.url} controls className="w-full" />
@@ -169,19 +167,6 @@ export default function InvitationRenderer(props: Props) {
   const invitation = isAlreadyNormalized(props.invitation)
     ? props.invitation
     : normalizeInvitation(props.invitation);
-
-  if (typeof window !== "undefined") {
-    console.log("[InvitationRenderer before IntroSection]", {
-      wasAlreadyNormalized: isAlreadyNormalized(props.invitation),
-      rootKeys: invitation ? Object.keys(invitation) : [],
-      introKeys: invitation?.intro ? Object.keys(invitation.intro) : [],
-      introMainImageUrl: invitation?.intro?.mainImageUrl,
-      introMainImagePreviewUrl: invitation?.intro?.mainImagePreviewUrl,
-      galleryImageCount: invitation?.gallery?.images?.length ?? 0,
-      firstGalleryUrl: invitation?.gallery?.images?.[0]?.url,
-      quoteImageUrl: invitation?.quote?.imageUrl,
-    });
-  }
 
   const tokens = themeTokens[invitation.design.themeColor];
   const weight = invitation.design.fontWeight === "light" ? 300 : invitation.design.fontWeight === "medium" ? 600 : 400;

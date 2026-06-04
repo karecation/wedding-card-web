@@ -49,7 +49,6 @@ export default function ShareFooter({ title, description, imageUrl, slug }: Shar
     setMessage("");
 
     try {
-      console.log("[KakaoShare click]", { hasImageUrl: Boolean(imageUrl), webUrl });
       await sendKakaoInvitationShare({
         title,
         description,

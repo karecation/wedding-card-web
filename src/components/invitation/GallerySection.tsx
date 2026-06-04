@@ -26,27 +26,6 @@ export default function GallerySection({
 
   // 실제 렌더 가능한 이미지(src가 비어있지 않은 것)만 남김
   const renderable = resolvedImages.filter((entry) => Boolean(entry.src));
-  const imageSources = renderable.map((entry) => entry.src);
-
-  if (typeof window !== "undefined") {
-    console.log("[GallerySection image src debug]", {
-      enabled: invitation.gallery.enabled,
-      rawImageCount: dedupedImages.length,
-      renderableCount: renderable.length,
-      imageSources, // 이제 string URL 배열
-      firstRawImage: dedupedImages[0],
-      firstResolvedSrc: imageSources[0],
-    });
-    console.log("[GallerySection] 렌더링 시작", {
-      mode,
-      enabled: invitation.gallery.enabled,
-      imageCount: renderable.length,
-      srcTypes: renderable.map(({ src }) =>
-        src.startsWith("https://") ? "https" : src.startsWith("blob:") ? "blob" : src.startsWith("data:") ? "base64" : "other",
-      ),
-    });
-  }
-
   if (!invitation.gallery.enabled) return null;
   if (renderable.length === 0 && mode === "public") return null;
   if (renderable.length === 0) {

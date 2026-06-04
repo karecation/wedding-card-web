@@ -7,6 +7,7 @@ export const LOCAL_INVITATIONS_STORAGE_KEY = "wedding_invitations";
 export const LOCAL_INVITATION_LIST_KEY = "wedding_invitation_list";
 export const LOCAL_SESSION_ID_KEY = "wedding_session_id";
 export const MAX_LOCAL_INVITATIONS_PER_SESSION = 3;
+const LOCAL_DELETED_INVITATIONS_KEY = "wedding_invitation_deleted_ids";
 const LEGACY_STORAGE_KEYS = ["mobile-wedding-invitations", LOCAL_INVITATIONS_STORAGE_KEY];
 
 export type LocalInvitationSummary = {
@@ -55,6 +56,25 @@ function parseLegacyList(raw: string | null): SavedInvitation[] {
   return Array.isArray(parsed) ? (parsed.filter(Boolean) as SavedInvitation[]) : [];
 }
 
+function getDeletedInvitationIds() {
+  if (typeof window === "undefined") return new Set<string>();
+  return new Set(parseJson<string[]>(window.localStorage.getItem(LOCAL_DELETED_INVITATIONS_KEY), []));
+}
+
+function markDeletedInvitation(ids: string[]) {
+  if (typeof window === "undefined") return;
+  const deleted = getDeletedInvitationIds();
+  ids.filter(Boolean).forEach((id) => deleted.add(id));
+  window.localStorage.setItem(LOCAL_DELETED_INVITATIONS_KEY, JSON.stringify(Array.from(deleted)));
+}
+
+function unmarkDeletedInvitation(ids: string[]) {
+  if (typeof window === "undefined") return;
+  const deleted = getDeletedInvitationIds();
+  ids.filter(Boolean).forEach((id) => deleted.delete(id));
+  window.localStorage.setItem(LOCAL_DELETED_INVITATIONS_KEY, JSON.stringify(Array.from(deleted)));
+}
+
 function withDefaults(invitation: SavedInvitation): SavedInvitation {
   return {
     ...emptyInvitationData,
@@ -99,9 +119,11 @@ export function listLocalInvitationSummaries(): LocalInvitationSummary[] {
     parseLegacyList(window.localStorage.getItem(key)).map((item) => toSummary(withDefaults(item))),
   );
   const seen = new Set<string>();
+  const deleted = getDeletedInvitationIds();
 
   return [...primary, ...legacySummaries]
     .filter((item) => !item.sessionId || item.sessionId === sessionId)
+    .filter((item) => !deleted.has(item.id) && !deleted.has(item.slug))
     .filter((item) => {
       const key = item.id || item.slug;
       if (!key || seen.has(key)) return false;
@@ -128,8 +150,11 @@ export function readLocalInvitation(identifier: string): SavedInvitation | null 
   if (typeof window === "undefined") return null;
 
   const decoded = decodeURIComponent(identifier);
+  const deleted = getDeletedInvitationIds();
+  if (deleted.has(decoded)) return null;
   const summaries = listLocalInvitationSummaries();
   const summary = summaries.find((item) => item.id === decoded || item.slug === decoded);
+  if (summary && (deleted.has(summary.id) || deleted.has(summary.slug))) return null;
   const detailId = summary?.id || decoded;
   const direct = parseJson<SavedInvitation | null>(window.localStorage.getItem(detailKey(detailId)), null);
   if (direct) return withDefaults(direct);
@@ -147,6 +172,7 @@ export function saveLocalInvitationRecord(invitation: SavedInvitation) {
 
   try {
     const sanitized = sanitizeInvitationForStorage(invitation);
+    unmarkDeletedInvitation([sanitized.id, sanitized.slug]);
     const summary = toSummary(sanitized);
     const current = listLocalInvitationSummaries();
     const isUpdate = current.some((item) => item.id === summary.id || item.slug === summary.slug);
@@ -160,7 +186,6 @@ export function saveLocalInvitationRecord(invitation: SavedInvitation) {
 
     window.localStorage.setItem(detailKey(sanitized.id), JSON.stringify(sanitized));
     window.localStorage.setItem(LOCAL_INVITATION_LIST_KEY, JSON.stringify(nextList));
-    console.log("[LOCAL_INVITATIONS] saved", { id: sanitized.id, slug: sanitized.slug, count: nextList.length });
     return true;
   } catch (error) {
     console.warn("[LOCAL_INVITATIONS] save failed", { error });
@@ -173,9 +198,16 @@ export function deleteLocalInvitation(identifier: string) {
   const decoded = decodeURIComponent(identifier);
   const current = listLocalInvitationSummaries();
   const target = current.find((item) => item.id === decoded || item.slug === decoded);
+  const deleteIds = [decoded, target?.id ?? "", target?.slug ?? ""].filter(Boolean);
   const next = current.filter((item) => item.id !== decoded && item.slug !== decoded);
   if (target?.id) window.localStorage.removeItem(detailKey(target.id));
   window.localStorage.removeItem(detailKey(decoded));
+  markDeletedInvitation(deleteIds);
+  for (const key of LEGACY_STORAGE_KEYS) {
+    const legacy = parseLegacyList(window.localStorage.getItem(key));
+    if (!legacy.length) continue;
+    const filtered = legacy.filter((item) => !deleteIds.includes(item.id) && !deleteIds.includes(item.slug));
+    window.localStorage.setItem(key, JSON.stringify(filtered));
+  }
   window.localStorage.setItem(LOCAL_INVITATION_LIST_KEY, JSON.stringify(next));
-  console.log("[LOCAL_INVITATIONS] deleted", { id: decoded });
 }

@@ -2,46 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { getMainImageSrc } from "@/lib/invitation/getImageSrc";
+import { getIntroImageSlotPreset } from "@/lib/invitation/introLayouts";
 import type { NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
 
 const weekdaysEn = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 const weekdaysKo = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
 
 type IntroLayout = NormalizedInvitation["design"]["introLayout"];
-
-type ImageSlotConfig = {
-  wrap: string;
-  frame: string;
-  placeholder: string;
-};
-
-const imageSlotByLayout: Record<IntroLayout, ImageSlotConfig> = {
-  moment: {
-    wrap: "mt-9",
-    frame: "aspect-[3/4] w-full max-w-[310px]",
-    placeholder: "세로형 대표 사진",
-  },
-  minimal: {
-    wrap: "mt-10",
-    frame: "aspect-[4/5] w-full max-w-[292px]",
-    placeholder: "미니멀 대표 사진",
-  },
-  start: {
-    wrap: "mt-8",
-    frame: "aspect-[5/6] w-full max-w-[326px]",
-    placeholder: "시작 테마 사진",
-  },
-  together: {
-    wrap: "mt-9 rounded-[18px] bg-white/80 p-3 shadow-[0_14px_36px_rgba(80,55,43,0.10)]",
-    frame: "aspect-[4/5] w-full max-w-[300px]",
-    placeholder: "프레임 대표 사진",
-  },
-  goodday: {
-    wrap: "mt-8 px-2",
-    frame: "aspect-[4/3] w-full max-w-[340px]",
-    placeholder: "좋은날 대표 사진",
-  },
-};
 
 function getDate(date: string) {
   const parsed = date ? new Date(`${date}T00:00:00`) : new Date("2026-05-19T00:00:00");
@@ -103,12 +70,12 @@ function IntroImageSlot({
   onLoad: () => void;
   onError: () => void;
 }) {
-  const config = imageSlotByLayout[layout];
+  const config = getIntroImageSlotPreset(layout);
 
   return (
-    <div className={`intro-image-slot mx-auto ${config.wrap}`}>
+    <div className={`intro-image-slot mx-auto ${config.wrapClassName}`}>
       <div
-        className={`intro-media-frame relative mx-auto overflow-hidden bg-[#e8e5e1] ${config.frame} ${frameClass(frameStyle, layout)}`}
+        className={`intro-media-frame relative mx-auto overflow-hidden bg-[#e8e5e1] ${config.frameClassName} ${frameClass(frameStyle, layout)}`}
       >
         {showImage ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -153,26 +120,8 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
     setImageError(false);
   }, [imageUrl, layout]);
 
-  if (typeof window !== "undefined") {
-    console.log("[Intro layout render]", {
-      layout,
-      imageUrlType: imageUrl.startsWith("blob:")
-        ? "blob"
-        : imageUrl.startsWith("https://")
-          ? "https"
-          : imageUrl.startsWith("data:")
-            ? "base64"
-            : imageUrl
-              ? "other"
-              : "empty",
-      hasImage: Boolean(imageUrl),
-      showImage,
-    });
-  }
-
-  const handleLoad = () => console.log("[Intro image loaded]", { layout });
+  const handleLoad = () => undefined;
   const handleError = () => {
-    console.error("[Intro image failed]", { layout, imageUrl: imageUrl.slice(0, 80) });
     setImageError(true);
   };
 

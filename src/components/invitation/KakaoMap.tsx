@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getKakaoMapAppKey, loadKakaoMaps } from "@/lib/kakaoMaps";
 
 type KakaoMapProps = {
   venueName?: string;
@@ -10,97 +11,17 @@ type KakaoMapProps = {
   height?: number | string;
 };
 
-type KakaoGeocodeResult = {
-  x: string;
-  y: string;
-};
-
-type KakaoLatLng = object;
-type KakaoMapInstance = object;
-
-type KakaoMaps = {
-  load: (callback: () => void) => void;
-  LatLng: new (lat: number, lng: number) => KakaoLatLng;
-  Map: new (container: HTMLElement, options: { center: KakaoLatLng; level: number }) => KakaoMapInstance;
-  Marker: new (options: { position: KakaoLatLng; map?: KakaoMapInstance }) => { setMap: (map: KakaoMapInstance) => void };
-  services: {
-    Status: { OK: string };
-    Geocoder: new () => {
-      addressSearch: (address: string, callback: (result: KakaoGeocodeResult[], status: string) => void) => void;
-    };
-  };
-};
-
-declare global {
-  interface Window {
-    kakao?: {
-      maps: KakaoMaps;
-    };
-  }
-}
-
-const SCRIPT_ID = "kakao-maps-sdk";
-let kakaoMapsPromise: Promise<void> | null = null;
-
-function loadKakaoMaps(appKey: string) {
-  if (typeof window === "undefined") return Promise.reject(new Error("window unavailable"));
-  if (window.kakao?.maps?.services) return Promise.resolve();
-  if (kakaoMapsPromise) return kakaoMapsPromise;
-
-  kakaoMapsPromise = new Promise<void>((resolve, reject) => {
-    const existingScript = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
-
-    const loadMaps = () => {
-      if (!window.kakao?.maps?.load) {
-        reject(new Error("kakao maps sdk unavailable"));
-        return;
-      }
-      window.kakao.maps.load(() => {
-        console.log("[KakaoMap script loaded]");
-        resolve();
-      });
-    };
-
-    if (existingScript) {
-      if (window.kakao?.maps?.load) loadMaps();
-      else {
-        existingScript.addEventListener("load", loadMaps, { once: true });
-        existingScript.addEventListener("error", () => reject(new Error("kakao maps script failed")), { once: true });
-      }
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = SCRIPT_ID;
-    script.async = true;
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services`;
-    script.onload = loadMaps;
-    script.onerror = () => reject(new Error("kakao maps script failed"));
-    document.head.appendChild(script);
-  });
-
-  return kakaoMapsPromise;
-}
-
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
 export default function KakaoMap({ venueName, address, lat, lng, height = 260 }: KakaoMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const appKey = process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY;
+  const appKey = getKakaoMapAppKey();
   const hasAppKey = Boolean(appKey);
   const hasCoords = isFiniteNumber(lat) && isFiniteNumber(lng);
   const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    console.log("[KakaoMap env]", { hasAppKey });
-  }, [hasAppKey]);
-
-  useEffect(() => {
-    console.log("[KakaoMap props]", { venueName, address, lat, lng });
-  }, [venueName, address, lat, lng]);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,7 +35,6 @@ export default function KakaoMap({ venueName, address, lat, lng, height = 260 }:
 
     const renderMap = (mapLat: number, mapLng: number) => {
       if (cancelled || !containerRef.current || !window.kakao?.maps) return;
-      console.log("[KakaoMap render map]", { lat: mapLat, lng: mapLng });
       const kakao = window.kakao.maps;
       const center = new kakao.LatLng(mapLat, mapLng);
       const map = new kakao.Map(containerRef.current, { center, level: 3 });
@@ -127,7 +47,6 @@ export default function KakaoMap({ venueName, address, lat, lng, height = 260 }:
 
     const showFallback = (reason: string) => {
       if (cancelled) return;
-      console.log("[KakaoMap fallback]", { reason });
       setFallbackReason(reason);
       setIsLoading(false);
       endTimer();
@@ -162,19 +81,16 @@ export default function KakaoMap({ venueName, address, lat, lng, height = 260 }:
           return;
         }
 
-        console.log("[KakaoMap geocode start]", { address: cleanAddress });
         const geocoder = new window.kakao.maps.services.Geocoder();
         geocoder.addressSearch(cleanAddress, (result, status) => {
           if (cancelled) return;
           if (status === window.kakao?.maps.services.Status.OK && result[0]) {
             const nextLat = Number(result[0].y);
             const nextLng = Number(result[0].x);
-            console.log("[KakaoMap geocode success]", { lat: nextLat, lng: nextLng });
             renderMap(nextLat, nextLng);
             return;
           }
 
-          console.log("[KakaoMap geocode failed]", { status });
           showFallback("geocode failed");
         });
       })

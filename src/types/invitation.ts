@@ -61,6 +61,7 @@ export type TransportItem = {
 };
 
 export type LocationData = {
+  title?: string;
   venueName: string;
   hallName: string;
   address: string;

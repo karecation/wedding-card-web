@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import KakaoMap from "@/components/invitation/KakaoMap";
+import { geocodeKakaoAddress } from "@/lib/kakaoMaps";
+import { asIntroTemplate, getIntroImageSlotPreset, INTRO_LAYOUT_OPTIONS, moodForIntroLayout, resolveIntroLayout } from "@/lib/invitation/introLayouts";
 import { extractYouTubeVideoId } from "@/lib/youtube";
 import { validateUploadFile, type PendingUpload } from "@/lib/upload";
 import type {
@@ -59,13 +62,7 @@ const menuLabels: Record<MenuSectionId, string> = {
   quote: "사진 & 글귀",
 };
 
-const introTemplates: Array<{ id: IntroTemplate; label: string; hint: string }> = [
-  { id: "moment", label: "모먼트", hint: "세로 사진" },
-  { id: "minimal", label: "미니멀", hint: "넓은 여백" },
-  { id: "start", label: "시작", hint: "이름 강조" },
-  { id: "together", label: "동행", hint: "프레임 카드" },
-  { id: "goodday", label: "좋은날", hint: "종이 질감" },
-];
+const introTemplates = INTRO_LAYOUT_OPTIONS;
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -158,11 +155,13 @@ function UploadBox({
   imageUrl,
   type,
   label = "클릭 후 업로드",
+  className,
   onSelect,
 }: {
   imageUrl: string;
   type: ImageUploadType | "audio";
   label?: string;
+  className?: string;
   onSelect: (type: ImageUploadType | "audio", files: FileList | File[]) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -171,17 +170,12 @@ function UploadBox({
   const openFileDialog = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    console.log("[Image upload button clicked]", {
-      field: type,
-      multiple: isGallery,
-      hasInputRef: Boolean(inputRef.current),
-    });
     inputRef.current?.click();
   };
 
   return (
     <div
-      className={`grid min-h-[146px] w-full max-w-[320px] cursor-pointer place-items-center overflow-hidden rounded-[6px] border border-dashed bg-[#f8f8f8] px-4 py-4 text-center text-[12px] transition ${isDragging ? "border-[#222] bg-white" : "border-[#dedede] text-[#f06f52] hover:border-[#c9c9c9]"}`}
+      className={`grid min-h-[146px] w-full max-w-[320px] cursor-pointer place-items-center overflow-hidden rounded-[6px] border border-dashed bg-[#f8f8f8] px-4 py-4 text-center text-[12px] transition ${isDragging ? "border-[#222] bg-white" : "border-[#dedede] text-[#f06f52] hover:border-[#c9c9c9]"} ${className ?? ""}`}
       onDragOver={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -217,10 +211,6 @@ function UploadBox({
         multiple={isGallery}
         hidden
         onChange={(event) => {
-          console.log("[Image input changed]", {
-            field: type,
-            fileCount: event.target.files?.length ?? 0,
-          });
           if (event.target.files) onSelect(type, event.target.files);
           event.target.value = "";
         }}
@@ -277,15 +267,20 @@ function orderedGalleryImages(data: InvitationData) {
 export default function KoreanInvitationEditor({ data, onChange, onPendingUpload }: Props) {
   const [openSections, setOpenSections] = useState(sectionSeed);
   const [uploadError, setUploadError] = useState("");
+  const [locationSearchMessage, setLocationSearchMessage] = useState("");
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const [draggedMenuId, setDraggedMenuId] = useState<MenuSectionId | null>(null);
   const [draggedGalleryId, setDraggedGalleryId] = useState<string | null>(null);
 
   const galleryImages = orderedGalleryImages(data);
   const galleryEnabled = data.menuOrder.find((item) => item.id === "gallery")?.enabled ?? data.gallery?.enabled ?? false;
+  const selectedIntroLayout = resolveIntroLayout(data.introTemplate || data.templateMood);
+  const selectedIntroSlot = getIntroImageSlotPreset(selectedIntroLayout);
 
   const update = <K extends keyof InvitationData>(key: K, value: InvitationData[K]) => onChange({ ...data, [key]: value });
   const patch = (next: Partial<InvitationData>) => onChange({ ...data, ...next });
   const getLocationState = (): LocationData => ({
+    title: data.location?.title || data.venueTitle,
     venueName: data.location?.venueName || data.venueName,
     hallName: data.location?.hallName || data.venueHall,
     address: data.location?.address || data.venueAddress,
@@ -295,18 +290,65 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
     transportTitle: data.location?.transportTitle || data.transports[0]?.title || "",
     transportDescription: data.location?.transportDescription || data.transports[0]?.description || "",
   });
+  const locationState = getLocationState();
+  const hasEditorMapTarget = typeof locationState.lat === "number" && typeof locationState.lng === "number";
   const updateLocation = <K extends keyof LocationData>(field: K, value: LocationData[K]) => {
-    console.log("[Location input change]", { field, value });
     const nextLocation = { ...getLocationState(), [field]: value };
     const nextData: Partial<InvitationData> = { location: nextLocation };
 
+    if (field === "title") nextData.venueTitle = String(value ?? "");
     if (field === "venueName") nextData.venueName = String(value ?? "");
     if (field === "hallName") nextData.venueHall = String(value ?? "");
-    if (field === "address") nextData.venueAddress = String(value ?? "");
+    if (field === "address") {
+      nextLocation.lat = undefined;
+      nextLocation.lng = undefined;
+      nextData.venueAddress = String(value ?? "");
+      nextData.latitude = null;
+      nextData.longitude = null;
+    }
     if (field === "lat") nextData.latitude = typeof value === "number" ? value : null;
     if (field === "lng") nextData.longitude = typeof value === "number" ? value : null;
 
     patch(nextData);
+  };
+  const searchLocationAddress = async () => {
+    const address = getLocationState().address?.trim();
+    if (!address) {
+      setLocationSearchMessage("주소를 입력 후 [검색]을 눌러주세요.");
+      return;
+    }
+
+    setIsSearchingLocation(true);
+    setLocationSearchMessage("주소를 검색하는 중입니다.");
+    try {
+      const { lat, lng } = await geocodeKakaoAddress(address);
+      const nextLocation = { ...getLocationState(), address, lat, lng };
+      patch({
+        location: nextLocation,
+        venueAddress: address,
+        latitude: lat,
+        longitude: lng,
+      });
+      setLocationSearchMessage("검색한 위치를 지도에 표시했습니다.");
+    } catch (error) {
+      setLocationSearchMessage(error instanceof Error ? error.message : "주소 검색에 실패했습니다.");
+    } finally {
+      setIsSearchingLocation(false);
+    }
+  };
+  const updateThemeMood = (mood: string) => {
+    const layout = resolveIntroLayout(mood);
+    patch({
+      templateMood: mood,
+      introTemplate: asIntroTemplate(layout),
+    });
+  };
+  const updateIntroLayout = (template: IntroTemplate) => {
+    const layout = resolveIntroLayout(template);
+    patch({
+      introTemplate: asIntroTemplate(layout),
+      templateMood: moodForIntroLayout(layout),
+    });
   };
   const toggle = (id: string) => setOpenSections((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   const sectionProps = (id: string) => ({ open: openSections.includes(id), onToggle: () => toggle(id) });
@@ -318,16 +360,6 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
     const nextShowArrows = extra?.showGalleryArrows ?? data.gallery?.showArrows ?? data.showGalleryArrows;
     const explicitlyEnabled = extra?.menuOrder?.find((item) => item.id === "gallery")?.enabled;
     const nextEnabled = explicitlyEnabled ?? (galleryEnabled || orderedImages.length > 0);
-
-    console.log("[Gallery state updated]", {
-      enabled: nextEnabled,
-      imagesCount: orderedImages.length,
-      itemsCount: orderedImages.length,
-      withFile: orderedImages.filter((img) => img.file).length,
-      withUrl: orderedImages.filter((img) => img.url?.startsWith("https://")).length,
-      withPreview: orderedImages.filter((img) => img.previewUrl).length,
-      ids: orderedImages.map((img) => img.id),
-    });
 
     patch({
       ...extra,
@@ -356,14 +388,6 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
       .filter((file) => (type === "audio" ? true : file.type.startsWith("image/")))
       .slice(0, type === "gallery" ? Math.max(0, 60 - galleryImages.length) : 1);
 
-    console.log("[Image file selected]", {
-      type,
-      fileCount: incomingFiles.length,
-      files: incomingFiles.map((file) => ({ name: file.name, type: file.type, size: file.size })),
-      currentGalleryCount: galleryImages.length,
-      remainingSlots: type === "gallery" ? 60 - galleryImages.length : undefined,
-    });
-
     const nextGalleryItems: GalleryImage[] = [];
 
     for (const file of incomingFiles) {
@@ -379,7 +403,6 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         const preview = type === "audio" ? { previewUrl: URL.createObjectURL(file), dataUrl: "" } : await makeImagePreviews(file);
         const { previewUrl, dataUrl } = preview;
         onPendingUpload?.({ id, type, file, previewUrl, dataUrl });
-        console.log("[Pending upload registered]", { id, type, fileType: file.type, fileSize: file.size, hasPreviewUrl: Boolean(previewUrl) });
 
         if (type === "main") update("coverImage", previewUrl);
         if (type === "intro") update("introImage", previewUrl);
@@ -398,7 +421,6 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
             order: galleryImages.length + nextGalleryItems.length,
             type: "gallery",
           });
-          console.log("[Gallery item pushed]", { id, name: file.name, hasDataUrl: Boolean(dataUrl), hasPreviewUrl: Boolean(previewUrl) });
         }
       } catch (err) {
         console.error("[Gallery file processing failed]", {
@@ -478,8 +500,6 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
   const updateTransport = (id: string, item: Partial<TransportItem>) => {
     const nextTransports = data.transports.map((transport) => (transport.id === id ? { ...transport, ...item } : transport));
     const firstTransport = nextTransports[0];
-    if (item.title !== undefined) console.log("[Location input change]", { field: "transportTitle", value: item.title });
-    if (item.description !== undefined) console.log("[Location input change]", { field: "transportDescription", value: item.description });
     patch({
       transports: nextTransports,
       location: {
@@ -507,12 +527,12 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
 
       <Section title="테마" {...sectionProps("theme")}>
         <Field label="테마">
-          <Select value={data.templateMood} onChange={(event) => update("templateMood", event.target.value)} className="w-[180px]">
-            <option>모던</option>
-            <option>미니멀</option>
-            <option>클래식</option>
-            <option>로맨틱</option>
-            <option>내추럴</option>
+          <Select value={moodForIntroLayout(selectedIntroLayout)} onChange={(event) => updateThemeMood(event.target.value)} className="w-[180px]">
+            {INTRO_LAYOUT_OPTIONS.map((option) => (
+              <option key={option.id} value={option.mood}>
+                {option.mood}
+              </option>
+            ))}
           </Select>
         </Field>
         <Field label="컬러">
@@ -564,8 +584,8 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
               <button
                 key={template.id}
                 type="button"
-                onClick={() => update("introTemplate", template.id)}
-                className={`h-[112px] min-w-0 rounded-[4px] border p-2 text-left transition ${data.introTemplate === template.id ? "border-[#111] bg-white" : "border-[#ededed] bg-[#f7f7f7]"}`}
+                onClick={() => updateIntroLayout(template.id)}
+                className={`h-[112px] min-w-0 rounded-[4px] border p-2 text-left transition ${selectedIntroLayout === template.id ? "border-[#111] bg-white" : "border-[#ededed] bg-[#f7f7f7]"}`}
               >
                 <div className="mb-2 h-[45px] rounded bg-[#ddd]" />
                 <p className="truncate text-[12px] leading-[17px] text-[#111]">{template.label}</p>
@@ -580,7 +600,14 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
             {["기본", "아치", "타원", "액자", "채우기"].map((shape) => <Chip key={shape} active={data.introShape === shape} onClick={() => update("introShape", shape)}>{shape}</Chip>)}
           </div>
         </Field>
-        <Field label="대표 사진"><UploadBox imageUrl={data.coverImage} type="main" onSelect={selectFiles} /></Field>
+        <Field label="대표 사진">
+          <UploadBox
+            imageUrl={data.coverImage || data.introImage}
+            type="main"
+            onSelect={selectFiles}
+            className={selectedIntroSlot.editorFrameClassName}
+          />
+        </Field>
         <Field label="문구">
           <div className="space-y-2">
             <Input value={data.introHeadline} onChange={(event) => update("introHeadline", event.target.value)} placeholder="We're getting married" />
@@ -632,9 +659,43 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
       </Section>
 
       <Section title="예식장소" {...sectionProps("venue")}>
+        <Field label="제목"><Input value={locationState.title ?? data.venueTitle} onChange={(event) => updateLocation("title", event.target.value)} /></Field>
         <Field label="예식장명"><Input value={data.location?.venueName ?? data.venueName} onChange={(event) => updateLocation("venueName", event.target.value)} /></Field>
         <Field label="층과 홀"><Input value={data.location?.hallName ?? data.venueHall} onChange={(event) => updateLocation("hallName", event.target.value)} /></Field>
-        <Field label="주소"><Input value={data.location?.address ?? data.venueAddress} onChange={(event) => updateLocation("address", event.target.value)} /></Field>
+        <Field label="주소">
+          <div className="flex gap-2">
+            <Input value={locationState.address} onChange={(event) => updateLocation("address", event.target.value)} />
+            <button
+              type="button"
+              onClick={searchLocationAddress}
+              disabled={isSearchingLocation}
+              className="h-9 shrink-0 rounded-[4px] border border-[#222] bg-white px-4 text-[13px] font-semibold text-[#111] transition hover:bg-[#f8f3ef] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSearchingLocation ? "검색 중" : "검색"}
+            </button>
+          </div>
+        </Field>
+        <div className="ml-[108px] overflow-hidden rounded-[4px] border border-[#e5ded8] bg-[#faf7f2]">
+          {hasEditorMapTarget ? (
+            <KakaoMap
+              venueName={locationState.venueName}
+              address={locationState.address}
+              lat={locationState.lat}
+              lng={locationState.lng}
+              height={280}
+            />
+          ) : (
+            <div className="grid h-[280px] place-items-center bg-[#f3eee8] px-6 text-center text-[13px] leading-6 text-[#8f8077]">
+              주소를 입력 후 [검색]을 눌러주세요.
+            </div>
+          )}
+        </div>
+        {locationSearchMessage && <p className="ml-[108px] text-[12px] leading-5 text-[#8f8077]">{locationSearchMessage}</p>}
+        <div className="ml-[108px] space-y-2">
+          <Checkbox label="지도 표시" checked={data.showMap} onChange={(value) => update("showMap", value)} />
+          <Checkbox label="지도 잠금" checked={data.lockMap} onChange={(value) => update("lockMap", value)} />
+          <Checkbox label="약도 첨부" checked={data.attachMap} onChange={(value) => update("attachMap", value)} />
+        </div>
       </Section>
 
       <Section title="교통수단" {...sectionProps("transport")}>
@@ -731,7 +792,6 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
             onChange={(event) => {
               const url = event.target.value;
               const videoId = extractYouTubeVideoId(url);
-              console.log("[Video url parsed]", { valid: Boolean(videoId), videoId });
               patch({ youtubeUrl: url, youtubeVideoId: videoId, youtubeError: url && !videoId ? "올바른 YouTube URL을 입력해주세요." : "" });
             }}
             placeholder="https://www.youtube.com/watch?v=..."

@@ -20,14 +20,6 @@ export default function LocationSection({ invitation }: { invitation: Normalized
   const hasMapTarget = Boolean(address || hasCoords);
   const visibleTransport = invitation.location.transportations.filter((item) => item.title || item.body);
 
-  console.log("[LocationSection data]", {
-    venueName,
-    hallName,
-    address,
-    lat: invitation.location.lat,
-    lng: invitation.location.lng,
-  });
-
   return (
     <section className="px-7 py-12">
       <div className="text-center">

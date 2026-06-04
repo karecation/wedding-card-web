@@ -9,6 +9,7 @@ import {
   type TransportItem,
 } from "@/types/invitation";
 import { extractYouTubeVideoId } from "@/lib/youtube";
+import { resolveIntroLayout, type IntroLayoutId } from "@/lib/invitation/introLayouts";
 
 export type NormalizedInvitation = {
   id?: string;
@@ -30,7 +31,7 @@ export type NormalizedInvitation = {
     accentColor: string;
     fontFamily: string;
     fontWeight: "light" | "regular" | "medium";
-    introLayout: "moment" | "minimal" | "start" | "together" | "goodday";
+    introLayout: IntroLayoutId;
     frameStyle: "default" | "arch" | "ellipse" | "frame" | "fill";
     visualEffect: "none" | "wave" | "fog";
     particleEffect: "none" | "heart" | "snow" | "sakura" | "ginkgo";
@@ -253,12 +254,7 @@ function normalizeParticle(value: string): NormalizedInvitation["design"]["parti
 }
 
 function normalizeIntroLayout(value: string): NormalizedInvitation["design"]["introLayout"] {
-  if (value === "moment" || value === "basicDate" || value === "basic" || value.includes("모먼트") || value.includes("기본")) return "moment";
-  if (value === "minimal" || value.includes("미니멀")) return "minimal";
-  if (value === "start" || value === "photoFirst" || value.includes("시작") || value.includes("사진")) return "start";
-  if (value === "together" || value === "saveTheDate" || value.includes("동행") || value.includes("세이브")) return "together";
-  if (value === "goodday" || value.includes("좋은날")) return "goodday";
-  return "moment";
+  return resolveIntroLayout(value);
 }
 
 function normalizeTransport(items: TransportItem[]) {
@@ -417,7 +413,7 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
       accentColor: asString(merged.themeColor) || asString(theme.themeColor, "#c9897a"),
       fontFamily: normalizeFont(asString(merged.fontFamily) || asString(theme.fontFamily, "gowun-dodum")),
       fontWeight: normalizeWeight(asString(merged.fontWeight) || asString(theme.fontWeight)),
-      introLayout: normalizeIntroLayout(asString(merged.introTemplate)),
+      introLayout: normalizeIntroLayout(asString(merged.introTemplate) || asString(merged.templateMood)),
       frameStyle: normalizeFrame(asString(merged.introShape) || asString(theme.introShape)),
       visualEffect: "none",
       particleEffect: "none",

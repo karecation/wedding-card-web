@@ -87,14 +87,12 @@ export default function HistoryPage() {
     let active = true;
 
     const loadHistory = async () => {
-      console.log("[History load start]");
       setIsLoading(true);
       setErrorMessage("");
 
       const localInvitations = listLocalInvitationSummaries().map(toHistoryItem);
       if (localInvitations.length > 0) {
         setItems(localInvitations);
-        console.log("[HISTORY] invitations:", localInvitations);
       }
 
       try {
@@ -102,8 +100,6 @@ export default function HistoryPage() {
         if (!active) return;
         const invitations = mergeHistoryItems(remoteInvitations, localInvitations);
         setItems(invitations);
-        console.log("[History invitations loaded]", { count: invitations.length });
-        console.log("[HISTORY] invitations:", invitations);
       } catch (error) {
         if (!active) return;
         if (localInvitations.length === 0) {
@@ -185,23 +181,25 @@ export default function HistoryPage() {
                   key={item.id}
                   className="group relative flex min-h-64 flex-col justify-between rounded-[8px] border border-[#eadbd0] bg-white/86 p-5 shadow-[0_18px_45px_rgba(76,55,43,0.08)] transition hover:-translate-y-1 hover:border-[#d8b9aa] hover:shadow-[0_22px_55px_rgba(76,55,43,0.12)]"
                 >
-                  <button
-                    type="button"
-                    aria-label="청첩장 삭제"
-                    onClick={() => handleDelete(item)}
-                    className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full border border-[#eadbd0] bg-white text-sm font-semibold text-[#a96355] transition hover:bg-[#fff7ef]"
-                  >
-                    ×
-                  </button>
                   <div>
                     <div className="mb-5 flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#c78372]">Mobile Invitation</p>
                         <h2 className="mt-2 font-serif text-2xl font-semibold text-[#2f2a26]">{getCoupleName(item)}</h2>
                       </div>
-                      <span className="shrink-0 rounded-full border border-[#eadbd0] bg-[#fff7ef] px-3 py-1 text-[11px] font-semibold text-[#a96355]">
-                        {item.isPublished ? "미리보기 저장됨" : "제작 중"}
-                      </span>
+                      <div className="flex shrink-0 items-start gap-2">
+                        <span className="rounded-full border border-[#eadbd0] bg-[#fff7ef] px-3 py-1 text-[11px] font-semibold text-[#a96355]">
+                          {item.isPublished ? "미리보기 저장됨" : "제작 중"}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="청첩장 삭제"
+                          onClick={() => handleDelete(item)}
+                          className="grid h-7 w-7 place-items-center rounded-full border border-[#eadbd0] bg-white text-sm font-semibold text-[#a96355] transition hover:bg-[#fff7ef] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#bf7665]"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
 
                     <dl className="space-y-3 text-sm">
@@ -232,15 +230,13 @@ export default function HistoryPage() {
                   <div className="mt-6 flex gap-2">
                     <Link
                       href={previewHref}
-                      onClick={() => console.log("[History preview click]", { id: item.id, slug: item.slug })}
                       className="inline-flex h-10 flex-1 items-center justify-center rounded-[8px] border border-[#d8b9aa] bg-white text-sm font-semibold text-[#9f5e51] transition hover:bg-[#fff7ef]"
                     >
                       미리보기
                     </Link>
                     <Link
                       href={editHref}
-                      onClick={() => console.log("[History edit click]", { id: item.id, slug: item.slug })}
-                      className="inline-flex h-10 flex-1 items-center justify-center rounded-[8px] bg-[#2f2a26] text-sm font-semibold text-white transition hover:bg-[#4a4039]"
+                      className="inline-flex h-10 flex-1 items-center justify-center rounded-[8px] bg-[#bf7665] text-sm font-semibold text-white shadow-[0_8px_18px_rgba(191,118,101,0.18)] transition hover:bg-[#a96355] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#bf7665]"
                     >
                       수정하기
                     </Link>

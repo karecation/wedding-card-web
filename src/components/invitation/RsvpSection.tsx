@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { type CSSProperties, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
 
 type RsvpForm = {
@@ -46,6 +47,11 @@ export default function RsvpSection({
   });
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (!invitation.rsvp.enabled) return null;
 
@@ -77,40 +83,32 @@ export default function RsvpSection({
     }
   };
 
-  return (
-    <section className="px-7 py-14">
-      <div className="relative mx-auto max-w-[330px] rounded-[24px] border border-[var(--invite-border)] bg-[linear-gradient(180deg,rgba(255,255,255,.82),rgba(255,249,246,.72))] px-6 pb-7 pt-10 text-center shadow-[0_12px_30px_rgba(92,62,45,0.06)]">
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-[color-mix(in_srgb,var(--invite-accent)_18%,white)] px-5 py-2 text-[11px] font-semibold tracking-[-0.01em] text-[var(--invite-accent)] shadow-[0_4px_14px_rgba(150,105,92,0.08)]">
-          {invitation.rsvp.title || "참석 의사 전달"}
-        </div>
+  const modalVars = {
+    "--invite-accent": invitation.design.accentColor,
+    "--invite-text": "var(--invite-text, #2f2a26)",
+    "--invite-muted": "var(--invite-muted, #756962)",
+  } as CSSProperties;
 
-        <p className="mx-auto max-w-[250px] whitespace-pre-line text-[13px] leading-7 text-[var(--invite-muted)]">
-          {invitation.rsvp.body}
-        </p>
-
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className="mt-6 inline-flex h-11 items-center justify-center rounded-full border border-[var(--invite-border)] bg-white/80 px-6 text-[13px] font-semibold text-[var(--invite-text)] shadow-[0_5px_16px_rgba(100,70,58,0.05)] transition hover:bg-white"
+  const modal = isOpen && mounted
+    ? createPortal(
+        <div
+          className="fixed inset-0 z-[9999] grid place-items-center bg-black/50 px-4 py-6"
+          style={modalVars}
+          role="dialog"
+          aria-modal="true"
         >
-          {invitation.rsvp.buttonText || "참석 의사 전달하기"}
-        </button>
-      </div>
-
-      {isOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 px-4 py-6" role="dialog" aria-modal="true">
-          <div className="w-full max-w-[360px] rounded-[4px] bg-white p-7 text-left shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
+          <div className="max-h-[calc(100dvh-32px)] w-[calc(100%_-_32px)] max-w-[360px] overflow-y-auto rounded-[8px] bg-white px-6 py-7 text-left shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
             <div className="mb-7 flex items-center justify-between">
               <h3 className="text-[18px] font-semibold text-[#1f2933]">참석 의사 전달</h3>
-              <button type="button" aria-label="닫기" onClick={() => setIsOpen(false)} className="text-2xl leading-none text-[#444]">
+              <button type="button" aria-label="닫기" onClick={() => setIsOpen(false)} className="grid size-8 place-items-center rounded-full text-xl leading-none text-[#444] hover:bg-[#f7f6f5]">
                 ×
               </button>
             </div>
 
             <div className="space-y-3">
-              <div className="grid grid-cols-[78px_1fr] items-center gap-3">
+              <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3">
                 <span className="text-[14px] text-[#1f2933]">구분</span>
-                <div className="grid grid-cols-2 gap-1">
+                <div className="grid min-w-0 grid-cols-2 gap-1">
                   <button type="button" className={segmentedClass(form.side === "groom")} onClick={() => setForm({ ...form, side: "groom" })}>
                     신랑측
                   </button>
@@ -120,29 +118,29 @@ export default function RsvpSection({
                 </div>
               </div>
 
-              <div className="grid grid-cols-[78px_1fr] items-center gap-3">
+              <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3">
                 <span className="text-[14px] text-[#1f2933]">성함</span>
                 <input
                   value={form.name}
                   onChange={(event) => setForm({ ...form, name: event.target.value })}
-                  className="h-11 rounded-[2px] border border-transparent bg-[#f7f7f7] px-3 text-[14px] outline-none transition focus:border-[var(--invite-accent)] focus:bg-white"
+                  className="h-11 min-w-0 rounded-[2px] border border-transparent bg-[#f7f7f7] px-3 text-[14px] outline-none transition focus:border-[var(--invite-accent)] focus:bg-white"
                 />
               </div>
 
-              <div className="grid grid-cols-[78px_1fr] items-center gap-3">
+              <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3">
                 <span className="text-[14px] text-[#1f2933]">참석인원</span>
                 <input
                   inputMode="numeric"
                   value={form.count}
                   placeholder="본인 포함 총 참석인원"
                   onChange={(event) => setForm({ ...form, count: event.target.value.replace(/\D/g, "") })}
-                  className="h-11 rounded-[2px] border border-transparent bg-[#f7f7f7] px-3 text-[14px] outline-none transition placeholder:text-[#a0a7ae] focus:border-[var(--invite-accent)] focus:bg-white"
+                  className="h-11 min-w-0 rounded-[2px] border border-transparent bg-[#f7f7f7] px-3 text-[14px] outline-none transition placeholder:text-[#a0a7ae] focus:border-[var(--invite-accent)] focus:bg-white"
                 />
               </div>
 
-              <div className="grid grid-cols-[78px_1fr] items-center gap-3">
+              <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3">
                 <span className="text-[14px] text-[#1f2933]">식사여부</span>
-                <div className="grid grid-cols-3 gap-1">
+                <div className="grid min-w-0 grid-cols-3 gap-1">
                   {[
                     ["yes", "예정"],
                     ["no", "안함"],
@@ -176,14 +174,38 @@ export default function RsvpSection({
               type="button"
               disabled={!canSubmit || isSubmitting}
               onClick={submit}
-              className="mt-8 h-14 w-full rounded-[3px] bg-[var(--invite-accent)] text-[15px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-8 h-14 w-full rounded-[4px] bg-[var(--invite-accent)] text-[15px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isSubmitting ? "전달 중" : "참석 의사 전달하기"}
             </button>
             {message && <p className="mt-3 text-center text-[12px] text-[var(--invite-muted)]">{message}</p>}
           </div>
+        </div>,
+        document.body,
+      )
+    : null;
+
+  return (
+    <section className="px-7 py-14">
+      <div className="relative mx-auto max-w-[330px] rounded-[24px] border border-[var(--invite-border)] bg-[linear-gradient(180deg,rgba(255,255,255,.82),rgba(255,249,246,.72))] px-6 pb-7 pt-10 text-center shadow-[0_12px_30px_rgba(92,62,45,0.06)]">
+        <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-[color-mix(in_srgb,var(--invite-accent)_18%,white)] px-5 py-2 text-[11px] font-semibold tracking-[-0.01em] text-[var(--invite-accent)] shadow-[0_4px_14px_rgba(150,105,92,0.08)]">
+          {invitation.rsvp.title || "참석 의사 전달"}
         </div>
-      )}
+
+        <p className="mx-auto max-w-[250px] whitespace-pre-line text-[13px] leading-7 text-[var(--invite-muted)]">
+          {invitation.rsvp.body}
+        </p>
+
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="mt-6 inline-flex h-11 items-center justify-center rounded-full border border-[var(--invite-border)] bg-white/80 px-6 text-[13px] font-semibold text-[var(--invite-text)] shadow-[0_5px_16px_rgba(100,70,58,0.05)] transition hover:bg-white"
+        >
+          {invitation.rsvp.buttonText || "참석 의사 전달하기"}
+        </button>
+      </div>
+
+      {modal}
     </section>
   );
 }
