@@ -9,11 +9,12 @@ import PreviewErrorBoundary from "@/components/invitation/PreviewErrorBoundary";
 import { generateSlug } from "@/lib/generateSlug";
 import { uploadInvitationImages } from "@/lib/images/uploadInvitationImages";
 import { sanitizeInvitationForStorage } from "@/lib/invitation/sanitizeInvitationForStorage";
+import { LOCAL_INVITATIONS_STORAGE_KEY, readLocalInvitation, saveLocalInvitationRecord } from "@/lib/localInvitations";
 import type { PendingUpload } from "@/lib/upload";
 import { emptyInvitationData, type InvitationData, type SavedInvitation } from "@/types/invitation";
 
 const storageKey = "mobile-wedding-invitation";
-const collectionKey = "mobile-wedding-invitations";
+const collectionKey = LOCAL_INVITATIONS_STORAGE_KEY;
 
 function hasAccountData(data: InvitationData) {
   return data.bankAccounts.some((account) => account.bankName || account.accountNumber || account.accountHolder);
@@ -238,36 +239,7 @@ function revokeObjectUrls(invitation: InvitationData, uploads: PendingUpload[]) 
 }
 
 function saveLocalInvitation(invitation: SavedInvitation) {
-  try {
-    const localInvitation = sanitizeInvitationForLocalStorage(invitation);
-
-    const raw = window.localStorage.getItem(collectionKey);
-    const rawList = raw ? (JSON.parse(raw) as SavedInvitation[]) : [];
-    // 신규 항목 + 기존 항목 전체 재sanitize → 이전에 저장된 base64도 제거
-    const sanitizedList = [
-      localInvitation,
-      ...rawList.filter((item) => item.slug !== invitation.slug).map(sanitizeInvitationForLocalStorage),
-    ];
-
-    safeLocalStorageSet(collectionKey, sanitizedList);
-  } catch (error) {
-    if (isQuotaExceededError(error)) {
-      console.warn("[LocalStorage quota exceeded]", {
-        key: collectionKey,
-        approximateSizeKb: getApproxStorageSizeKb(invitation),
-      });
-      // 최소 메타정보만 재시도
-      try {
-        const minimal = { id: invitation.id, slug: invitation.slug, groomName: invitation.groomName, brideName: invitation.brideName, updatedAt: invitation.updatedAt };
-        const raw = window.localStorage.getItem(collectionKey);
-        const list = raw ? (JSON.parse(raw) as Array<{ slug: string }>) : [];
-        const next = [minimal, ...list.filter((item) => item.slug !== invitation.slug)];
-        safeLocalStorageSet(collectionKey, next);
-      } catch {
-        console.warn("[Local fallback skipped]", { reason: "quota exceeded even with minimal data" });
-      }
-    }
-  }
+  saveLocalInvitationRecord(invitation);
 }
 
 // Draft envelope: preview 페이지에서 Supabase 재조회를 위해 slug/invitationId를 함께 저장
@@ -297,13 +269,7 @@ async function loadInvitationByIdentifier(identifier: string): Promise<SavedInvi
   const bySlug = await getInvitationBySlugAction(identifier);
   if (bySlug) return bySlug;
 
-  try {
-    const raw = window.localStorage.getItem(collectionKey);
-    const list = raw ? (JSON.parse(raw) as SavedInvitation[]) : [];
-    return list.find((item) => item.id === identifier || item.slug === identifier) ?? null;
-  } catch {
-    return null;
-  }
+  return readLocalInvitation(identifier);
 }
 
 async function loadDraftInvitation(draftId: string): Promise<SavedInvitation | null> {
@@ -565,9 +531,12 @@ function CreatePageContent() {
       setPendingUploads([]);
 
       const previewId = savedInvitation.id || savedInvitation.slug;
+      const previewUrl = `/preview/${previewId}`;
       const draftId = saveDraft(savedInvitation, previewId);
       revokeObjectUrls(invitation, pendingUploads);
       cleanupLocalDrafts({ reason: "after-save", keepDraftId: draftId });
+      console.log("[SAVE_INVITATION] saved:", savedInvitation);
+      console.log("[SAVE_INVITATION] navigating to preview:", previewUrl);
       console.log("[Invitation saved]", { id: savedInvitation.id, slug: savedInvitation.slug });
       console.log("[Saved invitation data images]", {
         hasMainImageUrl: Boolean(savedInvitation.coverImage || savedInvitation.introImage),
@@ -583,7 +552,7 @@ function CreatePageContent() {
       });
       console.log("[Preview route push]", { previewId });
       setStatusMessage("저장되었습니다. 미리보기로 이동합니다.");
-      router.push(`/preview/${previewId}`);
+      router.push(previewUrl);
     } catch (error) {
       console.error("[Save failed]", error);
       setStatusMessage("저장에 실패했습니다. 다시 시도해 주세요.");

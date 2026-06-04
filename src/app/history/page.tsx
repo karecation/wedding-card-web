@@ -4,6 +4,35 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { listInvitationHistoryAction, type InvitationHistoryItem } from "@/app/actions/invitationActions";
+import { listLocalInvitations } from "@/lib/localInvitations";
+import type { SavedInvitation } from "@/types/invitation";
+
+function toHistoryItem(invitation: SavedInvitation): InvitationHistoryItem {
+  return {
+    id: invitation.id,
+    slug: invitation.slug,
+    groomName: invitation.groomName || "신랑",
+    brideName: invitation.brideName || "신부",
+    weddingDate: invitation.weddingDate,
+    weddingTime: invitation.weddingTime || `${invitation.weddingPeriod} ${invitation.weddingHour} ${invitation.weddingMinute}`,
+    venueName: invitation.location?.venueName || invitation.venueName,
+    hallName: invitation.location?.hallName || invitation.venueHall,
+    updatedAt: invitation.updatedAt,
+    isPublished: invitation.isPublished,
+  };
+}
+
+function mergeHistoryItems(remote: InvitationHistoryItem[], local: InvitationHistoryItem[]) {
+  const seen = new Set<string>();
+  return [...remote, ...local]
+    .filter((item) => {
+      const key = item.id || item.slug;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+}
 
 function formatDate(dateText: string) {
   if (!dateText) return "예식일 미입력";
@@ -53,12 +82,21 @@ export default function HistoryPage() {
       setErrorMessage("");
 
       try {
-        const invitations = await listInvitationHistoryAction();
+        const remoteInvitations = await listInvitationHistoryAction();
+        const localInvitations = listLocalInvitations().map(toHistoryItem);
+        const invitations = mergeHistoryItems(remoteInvitations, localInvitations);
         if (!active) return;
         setItems(invitations);
         console.log("[History invitations loaded]", { count: invitations.length });
+        console.log("[HISTORY] invitations:", invitations);
       } catch (error) {
         if (!active) return;
+        const localInvitations = listLocalInvitations().map(toHistoryItem);
+        if (localInvitations.length > 0) {
+          setItems(localInvitations);
+          console.log("[HISTORY] invitations:", localInvitations);
+          return;
+        }
         const message = error instanceof Error ? error.message : "제작 내역을 불러오지 못했습니다.";
         setErrorMessage(message);
         console.warn("[History load failed]", { error: message });

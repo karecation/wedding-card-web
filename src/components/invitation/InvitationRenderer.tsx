@@ -199,6 +199,14 @@ export default function InvitationRenderer(props: Props) {
   const visibleSections = invitation.menuOrder
     .map((id) => ({ id, node: renderSection(id, props, invitation) }))
     .filter((item) => item.node);
+  const shareImageUrl =
+    invitation.share.kakaoThumbnailUrl ||
+    invitation.share.urlThumbnailUrl ||
+    invitation.intro.mainImageUrl ||
+    invitation.gallery.images[0]?.url ||
+    "";
+  const shareTitle = invitation.share.title || `${invitation.basic.groomName} ♥ ${invitation.basic.brideName}`;
+  const shareDescription = invitation.share.description || "소중한 분들을 초대합니다.";
 
   return (
     <article
@@ -214,7 +222,10 @@ export default function InvitationRenderer(props: Props) {
         </div>
       ))}
       <AudioSection invitation={invitation} />
-      <div>{sectionDivider()}<ShareFooter /></div>
+      <div>
+        {sectionDivider()}
+        <ShareFooter title={shareTitle} description={shareDescription} imageUrl={shareImageUrl} />
+      </div>
     </article>
   );
 }

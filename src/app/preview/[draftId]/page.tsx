@@ -12,6 +12,7 @@ import {
 import InvitationRenderer from "@/components/invitation/InvitationRenderer";
 import { mergeInvitationImages } from "@/lib/invitation/mergeInvitationImages";
 import { normalizeInvitation, type NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
+import { readLocalInvitation } from "@/lib/localInvitations";
 import type { SavedInvitation } from "@/types/invitation";
 
 type DraftEnvelope = {
@@ -99,6 +100,17 @@ export default function DraftPreviewPage() {
       let merged = await loadFromSupabase(previewId);
 
       if (!merged) {
+        const localInvitation = readLocalInvitation(previewId);
+        if (localInvitation) {
+          console.log("[Preview fallback wedding_invitations]", {
+            id: localInvitation.id,
+            slug: localInvitation.slug,
+          });
+          merged = localInvitation;
+        }
+      }
+
+      if (!merged) {
         const raw = window.localStorage.getItem(`invitation-draft-${previewId}`);
         const draft = raw ? parseDraft(raw) : null;
         console.log("[Preview fallback localStorage]", {
@@ -125,6 +137,8 @@ export default function DraftPreviewPage() {
         setMissing(true);
         return;
       }
+
+      console.log("[PREVIEW] loaded invitation:", merged);
 
       // normalizeInvitation 직전 raw 데이터 진단
       console.log("[Preview final data detailed]", {

@@ -8,21 +8,11 @@ import { addGuestbookAction, getInvitationBySlugAction, getInvitationImagesActio
 import InvitationRenderer from "@/components/invitation/InvitationRenderer";
 import type { GuestbookEntry } from "@/components/invitation/GuestbookSection";
 import { mergeInvitationImages } from "@/lib/invitation/mergeInvitationImages";
+import { readLocalInvitation as readLocalStoredInvitation } from "@/lib/localInvitations";
 import { emptyInvitationData, type SavedInvitation } from "@/types/invitation";
 
-const collectionKey = "mobile-wedding-invitations";
-
 function readLocalInvitation(slug: string): SavedInvitation | null {
-  const raw = window.localStorage.getItem(collectionKey);
-  if (!raw) return null;
-  try {
-    const list = JSON.parse(raw) as SavedInvitation[];
-    const found = list.find((item) => item.slug === slug);
-    return found ? { ...emptyInvitationData, ...found } : null;
-  } catch {
-    window.localStorage.removeItem(collectionKey);
-    return null;
-  }
+  return readLocalStoredInvitation(slug);
 }
 
 export default function SharedInvitationPage() {

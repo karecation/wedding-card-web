@@ -145,6 +145,8 @@ export type NormalizedInvitation = {
     adminPassword?: string;
   };
   share: {
+    title: string;
+    description: string;
     kakaoThumbnailUrl?: string;
     urlThumbnailUrl?: string;
   };
@@ -515,6 +517,8 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
       adminPassword: asString(merged.guestbookAdminPassword),
     },
     share: {
+      title: asString(merged.kakaoShareTitle, "결혼합니다"),
+      description: asString(merged.kakaoShareDescription, "소중한 분들을 초대합니다."),
       kakaoThumbnailUrl: asString(merged.kakaoThumbnailUrl) || asString(row.kakao_thumbnail_url),
       urlThumbnailUrl: asString(merged.urlThumbnailUrl) || asString(row.url_thumbnail_url),
     },
