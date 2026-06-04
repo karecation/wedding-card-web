@@ -11,6 +11,7 @@ import {
   resolveIntroLayout,
 } from "@/lib/invitation/introLayouts";
 import { extractYouTubeVideoId } from "@/lib/youtube";
+import { resizeImageToDataUrl } from "@/lib/images/resizeImage";
 import { validateUploadFile, type PendingUpload } from "@/lib/upload";
 import type {
   BankAccountItem,
@@ -226,9 +227,14 @@ function Help({ children }: { children: React.ReactNode }) {
   return <p className="text-[12px] leading-6 text-[#999]">{children}</p>;
 }
 
-async function makeImagePreviews(file: File) {
+async function makeImagePreviews(file: File, maxWidth = 1100, quality = 0.72) {
   const previewUrl = URL.createObjectURL(file);
-  return { previewUrl, dataUrl: undefined };
+  try {
+    const dataUrl = await resizeImageToDataUrl(file, { maxWidth, quality });
+    return { previewUrl, dataUrl };
+  } catch {
+    return { previewUrl, dataUrl: undefined };
+  }
 }
 
 function createClientId(prefix: string) {
@@ -451,21 +457,29 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
 
       try {
         const id = createClientId(type);
-        const preview = type === "audio" ? { previewUrl: URL.createObjectURL(file), dataUrl: "" } : await makeImagePreviews(file);
+        // 갤러리는 더 작게 압축 (저장공간 절약)
+        const preview = type === "audio"
+          ? { previewUrl: URL.createObjectURL(file), dataUrl: "" }
+          : type === "gallery"
+          ? await makeImagePreviews(file, 800, 0.65)
+          : await makeImagePreviews(file);
         const { previewUrl, dataUrl } = preview;
         onPendingUpload?.({ id, type, file, previewUrl, dataUrl });
 
-        if (type === "main") patch({ coverImage: previewUrl, introImage: previewUrl });
-        if (type === "intro") patch({ introImage: previewUrl, coverImage: previewUrl });
-        if (type === "quote" || type === "photoQuote" || type === "photo-quote") update("quoteImage", previewUrl);
-        if (type === "kakao_thumbnail" || type === "kakaoThumbnail") update("kakaoThumbnailUrl", previewUrl);
-        if (type === "url_thumbnail" || type === "urlThumbnail" || type === "shareThumbnail" || type === "share") update("urlThumbnailUrl", previewUrl);
+        // dataUrl(base64)은 세션 종료 후에도 localStorage에 유지된다.
+        // previewUrl(blob)은 현재 세션에서 빠른 표시용으로만 사용.
+        const persistUrl = dataUrl || previewUrl;
+        if (type === "main") patch({ coverImage: persistUrl, introImage: persistUrl });
+        if (type === "intro") patch({ introImage: persistUrl, coverImage: persistUrl });
+        if (type === "quote" || type === "photoQuote" || type === "photo-quote") update("quoteImage", persistUrl);
+        if (type === "kakao_thumbnail" || type === "kakaoThumbnail") update("kakaoThumbnailUrl", persistUrl);
+        if (type === "url_thumbnail" || type === "urlThumbnail" || type === "shareThumbnail" || type === "share") update("urlThumbnailUrl", persistUrl);
         if (type === "audio") patch({ audioUrl: previewUrl, musicUrl: previewUrl, audioTitle: file.name });
         if (type === "gallery") {
           nextGalleryItems.push({
             id,
             file,
-            url: "",
+            url: dataUrl || "",  // base64를 url로 저장 — sanitize 후에도 유지됨
             previewUrl,
             dataUrl,
             caption: "",

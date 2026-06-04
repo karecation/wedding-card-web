@@ -2,7 +2,11 @@ import { emptyInvitationData, type GalleryImage, type SavedInvitation } from "@/
 
 function publicUrlOnly(value?: string) {
   if (!value) return "";
-  return value.startsWith("https://") || value.startsWith("http://") ? value : "";
+  // https/http URL과 base64 data URL 모두 유효한 저장 대상으로 허용.
+  // blob: URL은 세션 종료 후 유효하지 않으므로 제거한다.
+  if (value.startsWith("https://") || value.startsWith("http://")) return value;
+  if (value.startsWith("data:")) return value;
+  return "";
 }
 
 function sanitizeGalleryImage(image: GalleryImage, index: number): GalleryImage | null {
