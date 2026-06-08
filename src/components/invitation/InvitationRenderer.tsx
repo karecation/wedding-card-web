@@ -11,7 +11,7 @@ import LocationSection from "@/components/invitation/LocationSection";
 import RsvpSection from "@/components/invitation/RsvpSection";
 import ShareFooter from "@/components/invitation/ShareFooter";
 import { getPhotoQuoteSrc } from "@/lib/invitation/getImageSrc";
-import { normalizeInvitation, type NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
+import { normalizeInvitation, PALETTE_DEFS, type NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
 import { getYouTubeEmbedUrl } from "@/lib/youtube";
 import type { MenuSectionId } from "@/types/invitation";
 
@@ -32,11 +32,34 @@ type Props = {
   onGuestbookSubmit?: (entry: { guest_name: string; message: string }) => Promise<void>;
 };
 
-const themeTokens: Record<NormalizedInvitation["design"]["themeColor"], { bg: string; card: string; text: string; muted: string; border: string; accentSoft: string }> = {
-  ivory: { bg: "#fbf7ef", card: "#fffdf8", text: "#34251f", muted: "#7a665d", border: "#eaded3", accentSoft: "#caa79b" },
-  beige: { bg: "#f4efe8", card: "#fffaf4", text: "#332820", muted: "#78675c", border: "#e0d3c2", accentSoft: "#b78f72" },
-  pink: { bg: "#fff6f6", card: "#fffafa", text: "#372026", muted: "#86696d", border: "#efd8d8", accentSoft: "#d8a0a6" },
-};
+const FALLBACK_PALETTE = PALETTE_DEFS["pure-white"];
+
+function RevealSection({ children, enabled }: { children: React.ReactNode; enabled: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !enabled) return;
+
+    el.dataset.reveal = "pending";
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          delete el.dataset.reveal;
+          el.classList.add("invite-reveal");
+          observer.unobserve(el);
+        }
+      },
+      { threshold: 0.06, rootMargin: "0px 0px -24px 0px" },
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [enabled]);
+
+  return <div ref={ref}>{children}</div>;
+}
 
 function sectionDivider() {
   return <div className="mx-7 h-px bg-[var(--invite-border)]" />;
@@ -168,17 +191,18 @@ export default function InvitationRenderer(props: Props) {
     ? props.invitation
     : normalizeInvitation(props.invitation);
 
-  const tokens = themeTokens[invitation.design.themeColor];
+  const tokens = PALETTE_DEFS[invitation.design.themeColor] ?? FALLBACK_PALETTE;
   const weight = invitation.design.fontWeight === "light" ? 300 : invitation.design.fontWeight === "medium" ? 600 : 400;
   const fontScale = invitation.design.fontWeight === "light" ? 0.97 : invitation.design.fontWeight === "medium" ? 1.06 : 1;
 
   const style = {
     "--invite-bg": tokens.bg,
+    "--invite-surface": tokens.surface,
     "--invite-card": tokens.card,
     "--invite-text": tokens.text,
     "--invite-muted": tokens.muted,
     "--invite-border": tokens.border,
-    "--invite-accent": invitation.design.accentColor || "#c9897a",
+    "--invite-accent": tokens.accent,
     "--invite-accent-soft": tokens.accentSoft,
     fontWeight: weight,
     fontSize: `${fontScale * 100}%`,
@@ -203,11 +227,11 @@ export default function InvitationRenderer(props: Props) {
       style={style}
     >
       <IntroSection invitation={invitation} />
-      {visibleSections.map((item, index) => (
-        <div key={item.id} className={invitation.design.revealOnScroll ? "invite-reveal" : undefined}>
+      {visibleSections.map((item) => (
+        <RevealSection key={item.id} enabled={invitation.design.revealOnScroll}>
           {sectionDivider()}
           {item.node}
-        </div>
+        </RevealSection>
       ))}
       <AudioSection invitation={invitation} />
       <div>

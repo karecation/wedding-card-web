@@ -359,7 +359,7 @@ export const emptyInvitationData: InvitationData = {
   defaultMusic: "A",
   audioAutoplay: true,
   templateMood: "moment",
-  themeColor: "#B8896A",
+  themeColor: "pure-white",
   fontFamily: "gowun-dodum",
   fontWeight: "regular",
   preventZoom: true,

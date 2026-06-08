@@ -27,7 +27,7 @@ export type NormalizedInvitation = {
   };
   design: {
     theme: string;
-    themeColor: "ivory" | "beige" | "pink";
+    themeColor: PaletteId;
     accentColor: string;
     fontFamily: string;
     fontWeight: "light" | "regular" | "medium";
@@ -216,58 +216,61 @@ function normalizeMenuOrder(value: unknown): MenuSectionId[] {
   return [...ids, ...missing];
 }
 
-/** accent hex → background token 매핑 */
-const ACCENT_TO_TOKEN: Record<string, "ivory" | "beige" | "pink"> = {
-  // SAVE THE DATE palette
-  "#b8896a": "beige",
-  "#c98f8a": "pink",
-  "#8e7464": "beige",
-  "#8f9a8b": "ivory",
-  "#3a2f2a": "beige",
-  // 기본 3색
-  "#c9897a": "ivory",
-  "#b78f72": "beige",
-  "#d8a0a6": "pink",
-  // 추가 테마 프리셋
-  "#a8a090": "ivory",   // natural
-  "#8a7a6a": "beige",   // classic
+export type PaletteId =
+  | "pure-white"
+  | "champagne"
+  | "rose-gold"
+  | "sage";
+
+export const PALETTE_DEFS: Record<PaletteId, {
+  accent: string; accentSoft: string;
+  bg: string; surface: string; card: string;
+  text: string; muted: string; border: string;
+}> = {
+  "pure-white": { accent: "#BCA882", accentSoft: "#D8CAAF", bg: "#FFFFFF", surface: "#F5F1EA", card: "#FFFFFF", text: "#1A1714", muted: "#857873", border: "#EAE4DC" },
+  "champagne":  { accent: "#A88A5C", accentSoft: "#C8AC86", bg: "#FEFCF6", surface: "#EDE4CF", card: "#FEFEF9", text: "#231A0C", muted: "#7A6848", border: "#DDD0B0" },
+  "rose-gold":  { accent: "#B87888", accentSoft: "#D4A8B4", bg: "#FDF7F8", surface: "#EEE0E4", card: "#FEFCFD", text: "#281820", muted: "#786068", border: "#E2D0D6" },
+  "sage":       { accent: "#6A9070", accentSoft: "#9ABAA0", bg: "#F5F9F4", surface: "#DDE8D6", card: "#FAFDF9", text: "#181E16", muted: "#566255", border: "#C5D8BC" },
 };
 
-function normalizeThemeColor(value: string): NormalizedInvitation["design"]["themeColor"] {
+/** 구버전 hex/ID → 새 palette ID 하위 호환 */
+const LEGACY_TO_PALETTE: Record<string, PaletteId> = {
+  "ivory-warm": "champagne", "blush-rose": "rose-gold",
+  "sage-green": "sage", "slate-blue": "pure-white",
+  "coral-sand": "champagne", "champagne-beige": "champagne",
+  "terracotta-clay": "champagne", "graphite-ivory": "pure-white",
+  "rose-taupe": "rose-gold", "lavender-mist": "rose-gold",
+  "sage-linen": "sage", "dusty-blue": "pure-white",
+  "ivory": "pure-white", "beige": "champagne", "pink": "rose-gold",
+  "#d9826b": "champagne", "#b69668": "champagne", "#b96f55": "champagne",
+  "#55514c": "pure-white", "#b8896a": "champagne", "#b78f72": "champagne",
+  "#b8956a": "champagne", "#a88a5c": "champagne",
+  "#b9797e": "rose-gold", "#9a82a3": "rose-gold",
+  "#c98f8a": "rose-gold", "#d8a0a6": "rose-gold", "#bc8f96": "rose-gold", "#b87888": "rose-gold",
+  "#7f8d70": "sage", "#8f9a8b": "sage", "#7a9e6a": "sage", "#6a9070": "sage",
+  "#718c9a": "pure-white", "#738fa4": "pure-white", "#3a2f2a": "pure-white", "#bca882": "pure-white",
+};
+
+const DEFAULT_PALETTE: PaletteId = "pure-white";
+
+function normalizeThemeColor(value: string): PaletteId {
   const v = (value ?? "").trim().toLowerCase();
-  // 1. named
-  if (v === "pink") return "pink";
-  if (v === "beige") return "beige";
-  if (v === "ivory") return "ivory";
-  // 2. known hex exact match
-  const exact = ACCENT_TO_TOKEN[v];
-  if (exact) return exact;
-  // 3. hex-based heuristic (r,g,b 분석)
+  if (v in PALETTE_DEFS) return v as PaletteId;
+  const mapped = LEGACY_TO_PALETTE[v];
+  if (mapped) return mapped;
   if (v.startsWith("#") && v.length === 7) {
     const r = parseInt(v.slice(1, 3), 16);
     const g = parseInt(v.slice(3, 5), 16);
     const b = parseInt(v.slice(5, 7), 16);
-    if (b > 130 && b > g * 0.88) return "pink";   // 파란 기운 있는 핑크
-    if (r > g && g > b) return "beige";             // 따뜻한 갈색 계열
+    if (g > r && g > b) return "sage";
+    if (r > g + 8) return "rose-gold";
+    if (r > g && g > b) return "champagne";
   }
-  // 4. legacy string patterns
-  if (v.includes("pink") || v.includes("f06") || v.includes("e8d")) return "pink";
-  if (v.includes("beige")) return "beige";
-  return "ivory";
+  return DEFAULT_PALETTE;
 }
 
 function normalizeAccentColor(value: string) {
-  const v = (value ?? "").trim().toLowerCase();
-  if (!v) return "#B8896A";
-  if (v === "#b8896a" || v.includes("champagne")) return "#B8896A";
-  if (v === "#c98f8a" || v.includes("dusty") || v.includes("rose")) return "#C98F8A";
-  if (v === "#8e7464" || v.includes("taupe")) return "#8E7464";
-  if (v === "#8f9a8b" || v.includes("sage")) return "#8F9A8B";
-  if (v === "#3a2f2a" || v.includes("ink") || v.includes("black") || v.includes("dark")) return "#3A2F2A";
-  if (v === "#d8a0a6" || v.includes("pink") || v.includes("f06")) return "#C98F8A";
-  if (v === "#b78f72" || v === "#8a7a6a") return "#8E7464";
-  if (v === "#c9897a" || v === "#a87563") return "#B8896A";
-  return value || "#B8896A";
+  return PALETTE_DEFS[normalizeThemeColor(value)].accent;
 }
 
 function normalizeFont(value: string) {

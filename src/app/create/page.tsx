@@ -651,7 +651,7 @@ function CreatePageContent() {
         </aside>
 
         <section className="editor-panel">
-          <div className="mx-auto max-w-[660px]">
+          <div className="mx-auto max-w-[660px] pb-8">
             <KoreanInvitationEditor data={invitation} isSaving={isSaving} onChange={handleChange} onPendingUpload={handlePendingUpload} />
           </div>
         </section>

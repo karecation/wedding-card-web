@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { PALETTE_DEFS } from "@/lib/invitation/normalizeInvitation";
 import KakaoMap from "@/components/invitation/KakaoMap";
 import { searchKakaoLocation, type LocationSearchResult } from "@/lib/kakaoMaps";
 import {
@@ -106,7 +107,7 @@ function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 
 function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
-    <label className="inline-flex min-h-7 cursor-pointer items-center gap-2 text-[12px] text-[#555]">
+    <label className="flex min-h-7 cursor-pointer items-center gap-2 text-[12px] text-[#555]">
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="size-4 accent-[#555]" />
       <span>{label}</span>
     </label>
@@ -269,23 +270,28 @@ const introFrameOptions = [
 ] as const;
 
 const weddingColorOptions = [
-  { name: "Champagne Beige", color: "#B8896A" },
-  { name: "Dusty Rose", color: "#C98F8A" },
-  { name: "Mocha Taupe", color: "#8E7464" },
-  { name: "Sage Gray", color: "#8F9A8B" },
-  { name: "Ink Brown", color: "#3A2F2A" },
-] as const;
+  { id: "pure-white" as const, name: "화이트" },
+  { id: "champagne"  as const, name: "샴페인" },
+  { id: "rose-gold"  as const, name: "로즈 골드" },
+  { id: "sage"       as const, name: "세이지" },
+];
 
-function normalizePaletteColor(value: string | null | undefined) {
+// 저장된 themeColor(구 hex/ID 포함) → 현재 paletteId 로 정규화
+function getSelectedPaletteId(value: string | null | undefined): string {
   const clean = (value ?? "").trim().toLowerCase();
-  if (!clean) return "#B8896A";
-  const exact = weddingColorOptions.find((option) => option.color.toLowerCase() === clean);
-  if (exact) return exact.color;
-  if (clean.includes("pink") || clean.includes("rose") || clean === "#d8a0a6" || clean === "#f06f52") return "#C98F8A";
-  if (clean.includes("dark") || clean.includes("black") || clean === "#8a7a6a") return "#3A2F2A";
-  if (clean.includes("sage") || clean.includes("green") || clean === "#a8a090") return "#8F9A8B";
-  if (clean.includes("taupe") || clean === "#b78f72") return "#8E7464";
-  return "#B8896A";
+  if (!clean) return "pure-white";
+  if (weddingColorOptions.some((o) => o.id === clean)) return clean;
+  const legacy: Record<string, string> = {
+    "ivory-warm": "champagne", "blush-rose": "rose-gold", "sage-green": "sage", "slate-blue": "pure-white",
+    "coral-sand": "champagne", "champagne-beige": "champagne", "terracotta-clay": "champagne", "graphite-ivory": "pure-white",
+    "rose-taupe": "rose-gold", "lavender-mist": "rose-gold", "sage-linen": "sage", "dusty-blue": "pure-white",
+    "ivory": "pure-white", "beige": "champagne", "pink": "rose-gold",
+    "#b8956a": "champagne", "#a88a5c": "champagne",
+    "#bc8f96": "rose-gold", "#b87888": "rose-gold",
+    "#7a9e6a": "sage", "#6a9070": "sage",
+    "#738fa4": "pure-white", "#bca882": "pure-white",
+  };
+  return legacy[clean] ?? "pure-white";
 }
 
 function normalizeIntroFrameKey(value: string | null | undefined) {
@@ -329,7 +335,7 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
   const selectedIntroTheme = getIntroThemeConfig(selectedIntroLayout);
   const canCustomizeIntroFrame = selectedIntroLayout === "moment" || selectedIntroLayout === "minimal";
   const selectedIntroFrame = normalizeIntroFrameKey(data.introShape);
-  const selectedPaletteColor = normalizePaletteColor(data.themeColor);
+  const selectedPaletteId = getSelectedPaletteId(data.themeColor);
 
   const update = <K extends keyof InvitationData>(key: K, value: InvitationData[K]) => onChange({ ...data, [key]: value });
   const patch = (next: Partial<InvitationData>) => onChange({ ...data, ...next });
@@ -629,19 +635,22 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
           </div>
         </Field>
         <Field label="컬러">
-          <div className="flex items-center gap-2">
-            {weddingColorOptions.map(({ color, name }) => (
+          <div className="flex gap-3">
+            {weddingColorOptions.map(({ id, name }) => (
               <button
-                key={color}
+                key={id}
                 type="button"
                 aria-label={name}
-                onClick={() => update("themeColor", color)}
-                className={`size-8 rounded-full border transition ${
-                  selectedPaletteColor === color
-                    ? "border-[#2b211c] ring-2 ring-[#2b211c]/15 ring-offset-2 ring-offset-white"
-                    : "border-[#ded3c7] hover:scale-105"
+                title={name}
+                onClick={() => update("themeColor", id)}
+                className={`size-8 rounded-full overflow-hidden transition hover:scale-110 focus:outline-none ${
+                  selectedPaletteId === id
+                    ? "ring-2 ring-offset-2 ring-offset-white ring-[#2b211c] scale-110 shadow-sm"
+                    : "ring-1 ring-[#e0d6d0] hover:ring-[#b0a8a4]"
                 }`}
-                style={{ backgroundColor: color }}
+                style={{
+                  background: `linear-gradient(to bottom, ${PALETTE_DEFS[id].bg} 50%, ${PALETTE_DEFS[id].accent} 50%)`,
+                }}
               />
             ))}
           </div>
