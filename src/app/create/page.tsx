@@ -58,10 +58,20 @@ function normalizeLocationFields(data: InvitationData): InvitationData {
   };
 }
 
+function getLocalDateString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function prepareInitialInvitation(data: InvitationData, isEdit = false): InvitationData {
   const nextData = normalizeLocationFields(data);
   return {
     ...nextData,
+    // 신규 청첩장(isEdit=false)에만 오늘 날짜 적용. 수정·드래프트는 저장된 날짜 유지.
+    weddingDate: isEdit ? nextData.weddingDate : getLocalDateString(),
     gallery: nextData.gallery ?? emptyInvitationData.gallery,
     menuOrder: nextData.menuOrder.map((item) => ({
       ...item,

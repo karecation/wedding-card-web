@@ -51,6 +51,8 @@ export type NormalizedInvitation = {
   };
   calendar: {
     enabled: boolean;
+    showDday: boolean;
+    showCountdown: boolean;
   };
   location: {
     enabled: boolean;
@@ -483,6 +485,8 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
     },
     calendar: {
       enabled: asBoolean(merged.showCalendar, true) && menuEnabled(menu, "calendar", true),
+      showDday: asBoolean(merged.showDday, true),
+      showCountdown: asBoolean(merged.showCountdown, false),
     },
     location: {
       enabled: locationEnabled,

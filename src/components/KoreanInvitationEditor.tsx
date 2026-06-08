@@ -733,14 +733,46 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         <Field label="예식일"><Input type="date" value={data.weddingDate} onChange={(event) => update("weddingDate", event.target.value)} className="w-[170px]" /></Field>
         <Field label="예식시간">
           <div className="flex gap-2">
-            <Select value={data.weddingPeriod} onChange={(event) => update("weddingPeriod", event.target.value)}><option>오전</option><option>오후</option></Select>
-            <Select value={data.weddingHour} onChange={(event) => update("weddingHour", event.target.value)}>
+            <Select value={data.weddingPeriod} onChange={(event) => {
+              const period = event.target.value;
+              const h = parseInt(data.weddingHour.replace("시", ""), 10);
+              const m = parseInt(data.weddingMinute.replace("분", ""), 10);
+              let hh = h;
+              if (period === "오후" && h !== 12) hh = h + 12;
+              if (period === "오전" && h === 12) hh = 0;
+              patch({ weddingPeriod: period, weddingTime: `${String(hh).padStart(2, "0")}:${String(m).padStart(2, "0")}` });
+            }}><option>오전</option><option>오후</option></Select>
+            <Select value={data.weddingHour} onChange={(event) => {
+              const hourStr = event.target.value;
+              const h = parseInt(hourStr.replace("시", ""), 10);
+              const m = parseInt(data.weddingMinute.replace("분", ""), 10);
+              let hh = h;
+              if (data.weddingPeriod === "오후" && h !== 12) hh = h + 12;
+              if (data.weddingPeriod === "오전" && h === 12) hh = 0;
+              patch({ weddingHour: hourStr, weddingTime: `${String(hh).padStart(2, "0")}:${String(m).padStart(2, "0")}` });
+            }}>
               {Array.from({ length: 12 }, (_, index) => `${index + 1}시`).map((hour) => <option key={hour}>{hour}</option>)}
             </Select>
-            <Select value={data.weddingMinute} onChange={(event) => update("weddingMinute", event.target.value)}>
+            <Select value={data.weddingMinute} onChange={(event) => {
+              const minStr = event.target.value;
+              const m = parseInt(minStr.replace("분", ""), 10);
+              const h = parseInt(data.weddingHour.replace("시", ""), 10);
+              let hh = h;
+              if (data.weddingPeriod === "오후" && h !== 12) hh = h + 12;
+              if (data.weddingPeriod === "오전" && h === 12) hh = 0;
+              patch({ weddingMinute: minStr, weddingTime: `${String(hh).padStart(2, "0")}:${String(m).padStart(2, "0")}` });
+            }}>
               {["00분", "10분", "20분", "30분", "40분", "50분"].map((minute) => <option key={minute}>{minute}</option>)}
             </Select>
           </div>
+        </Field>
+        <Field label="표시">
+          <div className="space-y-1">
+            <Checkbox label="달력" checked={data.showCalendar} onChange={(value) => update("showCalendar", value)} />
+            <Checkbox label="D-Day" checked={data.showDday} onChange={(value) => update("showDday", value)} />
+            <Checkbox label="카운트다운" checked={data.showCountdown} onChange={(value) => update("showCountdown", value)} />
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-[#aaa]">ⓘ 6개월 이내의 예식일만 선택할 수 있습니다.</p>
         </Field>
       </Section>
 
