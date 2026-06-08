@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PALETTE_DEFS } from "@/lib/invitation/normalizeInvitation";
 import KakaoMap from "@/components/invitation/KakaoMap";
 import { searchKakaoLocation, type LocationSearchResult } from "@/lib/kakaoMaps";
@@ -150,7 +150,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-[10px] border border-[#e6d8cc] bg-white/95 shadow-[0_10px_28px_rgba(58,47,42,0.035)]">
+    <section className="overflow-visible rounded-[10px] border border-[#e6d8cc] bg-white/95 shadow-[0_10px_28px_rgba(58,47,42,0.035)]">
       <button type="button" onClick={onToggle} className="flex h-[54px] w-full items-center justify-between px-5 text-left">
         <span className="flex items-center gap-2">
           <span className="grid size-4 place-items-center rounded-full bg-[#8E7464] text-[10px] text-white">✓</span>
@@ -391,6 +391,25 @@ const defaultIntroCustomColors: Record<IntroCustomColorField, string> = {
   subSlogan: "#8E7464",
 };
 
+const introColorSwatches = [
+  "#2B211C",
+  "#3A2F2A",
+  "#75635B",
+  "#8E7464",
+  "#B8896A",
+  "#C98F8A",
+  "#8F9A8B",
+  "#F7EFE8",
+  "#FFFFFF",
+  "#FFF33F",
+  "#9C2F1F",
+  "#B66F32",
+  "#C59A43",
+  "#4E7838",
+  "#2D5EA8",
+  "#2F235F",
+];
+
 function getIntroCustomColorDefaults(template: IntroBackgroundTemplate, accent = "#8E7464") {
   const defaults = {
     ...defaultIntroCustomColors,
@@ -517,47 +536,83 @@ function IntroCustomControls({
   const textFields = introTemplateTextFields[template] ?? [];
   const colorFields = introTemplateColorFields[template] ?? [];
   const [isColorOpen, setIsColorOpen] = useState(false);
+  const [activeColorField, setActiveColorField] = useState<IntroCustomColorField | null>(null);
+  const colorPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isColorOpen) {
+      setActiveColorField(null);
+      return;
+    }
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && colorPanelRef.current?.contains(target)) return;
+      setActiveColorField(null);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [isColorOpen]);
+
   if (!textFields.length && !colorFields.length) return null;
 
+  const hasTextField = (field: IntroCustomTextField) => textFields.includes(field);
+  const renderInput = (field: IntroCustomTextField) => (
+    <Input
+      key={field}
+      value={values[field] ?? defaults[field] ?? ""}
+      onChange={(event) => onTextChange(field, event.target.value)}
+      placeholder={introCustomFieldLabels[field]}
+      className="!h-8 !rounded-[6px] !px-2.5 !text-[12px]"
+    />
+  );
+
+  const renderTextarea = (field: IntroCustomTextField) => (
+    <Textarea
+      key={field}
+      rows={2}
+      value={values[field] ?? defaults[field] ?? ""}
+      onChange={(event) => onTextChange(field, event.target.value)}
+      placeholder={introCustomFieldLabels[field]}
+      className="!min-h-[58px] !rounded-[6px] !px-2.5 !py-1.5 !text-[12px] !leading-5"
+    />
+  );
+
+  const dateFields = (["year", "month", "day", "weekday"] as IntroCustomTextField[]).filter(hasTextField);
+  const nameFields = (["name1", "separator", "name2"] as IntroCustomTextField[]).filter(hasTextField);
+  const singleFields = (["slogan", "subSlogan"] as IntroCustomTextField[]).filter(hasTextField);
+
   return (
-    <div className="space-y-2 rounded-[7px] border border-[#eadfd6] bg-[#fffdf9]/80 p-2.5">
-      <div className="flex items-center gap-1.5 text-[12px] font-medium text-[#5c5048]">
+    <div className="relative space-y-2 rounded-[7px] border border-[#eadfd6] bg-[#fffdf9]/80 p-2.5">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#5c5048]">
         <span>문구 및 색상 편집</span>
         <span className="grid size-4 place-items-center rounded-full border border-[#e1d6cd] text-[10px] text-[#9b8d84]">⌄</span>
       </div>
-      <div className="grid grid-cols-2 gap-1.5">
-        {textFields.map((field) => {
-          const value = values[field] ?? defaults[field] ?? "";
-          const isWide = field === "eventLine" || field === "slogan" || field === "subSlogan";
-          return (
-            <div key={field} className={isWide ? "col-span-2" : ""}>
-              {field === "eventLine" ? (
-                <Textarea
-                  rows={2}
-                  value={value}
-                  onChange={(event) => onTextChange(field, event.target.value)}
-                  placeholder={introCustomFieldLabels[field]}
-                  className="min-h-[68px] rounded-[7px]"
-                />
-              ) : (
-                <Input
-                  value={value}
-                  onChange={(event) => onTextChange(field, event.target.value)}
-                  placeholder={introCustomFieldLabels[field]}
-                  className="h-10 rounded-[7px]"
-                />
-              )}
-            </div>
-          );
-        })}
+      <div className="space-y-1.5">
+        {dateFields.length > 0 && (
+          <div className="grid grid-cols-4 gap-1.5">
+            {dateFields.map(renderInput)}
+          </div>
+        )}
+        {nameFields.length > 0 && (
+          <div className="grid grid-cols-3 gap-1.5">
+            {nameFields.map(renderInput)}
+          </div>
+        )}
+        {hasTextField("eventLine") && renderTextarea("eventLine")}
+        {singleFields.map(renderInput)}
       </div>
       {colorFields.length > 0 && (
-        <div className="space-y-1.5">
+        <div ref={colorPanelRef} className="space-y-1.5">
           <button
             type="button"
-            onClick={() => setIsColorOpen((value) => !value)}
+            onClick={() => {
+              setIsColorOpen((value) => !value);
+              setActiveColorField(null);
+            }}
             aria-expanded={isColorOpen}
-            className="flex h-8 w-full items-center justify-between rounded-[7px] border border-[#e5d9cf] bg-white px-2.5 text-[11px] font-medium text-[#6b5c52] hover:border-[#b8896a]"
+            className="flex h-8 w-full items-center justify-between rounded-[6px] border border-[#e5d9cf] bg-white px-2.5 text-[11px] font-medium text-[#6b5c52] hover:border-[#b8896a]"
           >
             <span>글색 선택</span>
             <span className="text-[10px] text-[#9b8d84]">{isColorOpen ? "접기" : "펼치기"}</span>
@@ -568,22 +623,55 @@ function IntroCustomControls({
                 const fallback = colorDefaults[field] ?? defaultIntroCustomColors[field];
                 const value = toHexColor(colors[field], fallback);
                 return (
-                  <div key={field} className="grid min-w-0 grid-cols-[auto_28px_minmax(0,1fr)] items-center gap-1.5">
+                  <div key={field} className="relative grid min-w-0 grid-cols-[auto_24px_minmax(0,1fr)] items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => onColorReset(field)}
-                      className="h-7 rounded-[6px] border border-[#e2d7ce] bg-white px-2 text-[10px] text-[#6b5c52] hover:border-[#b8896a]"
+                      onClick={() => {
+                        onColorReset(field);
+                        setActiveColorField(null);
+                      }}
+                      className="h-8 rounded-[6px] border border-[#e2d7ce] bg-white px-2 text-[11px] text-[#6b5c52] hover:border-[#b8896a]"
                     >
                       기본색상
                     </button>
-                    <input
-                      type="color"
-                      value={value}
-                      aria-label={`${introCustomColorLabels[field]} 색상`}
-                      onChange={(event) => onColorChange(field, event.target.value)}
-                      className="size-7 cursor-pointer rounded-[6px] border border-[#e2d7ce] bg-white p-0.5"
-                    />
+                    <button
+                      type="button"
+                      aria-label={`${introCustomColorLabels[field]} 색상 선택`}
+                      onClick={() => setActiveColorField((current) => (current === field ? null : field))}
+                      className="size-6 rounded-[5px] border border-[#d9cec5] bg-white p-0.5 shadow-sm"
+                    >
+                      <span className="block h-full w-full rounded-[3px]" style={{ backgroundColor: value }} />
+                    </button>
                     <span className="truncate text-[11px] leading-4 text-[#8a7c73]">{introCustomColorLabels[field]}</span>
+                    {activeColorField === field && (
+                      <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[214px] rounded-[8px] border border-[#dfd2c9] bg-white p-2 shadow-[0_16px_32px_rgba(43,33,28,0.14)]">
+                        <div className="grid grid-cols-8 gap-1.5">
+                          {introColorSwatches.map((swatch) => (
+                            <button
+                              key={swatch}
+                              type="button"
+                              aria-label={`${swatch} 색상 적용`}
+                              onClick={() => {
+                                onColorChange(field, swatch);
+                                setActiveColorField(null);
+                              }}
+                              className={`size-5 rounded-[4px] border ${value.toLowerCase() === swatch.toLowerCase() ? "border-[#2b211c]" : "border-[#e5d9cf]"}`}
+                              style={{ backgroundColor: swatch }}
+                            />
+                          ))}
+                        </div>
+                        <div className="mt-2 flex items-center gap-2 border-t border-[#f0e8e1] pt-2">
+                          <input
+                            type="color"
+                            value={value}
+                            aria-label={`${introCustomColorLabels[field]} 직접 색상 선택`}
+                            onChange={(event) => onColorChange(field, event.target.value)}
+                            className="h-7 w-9 cursor-pointer rounded-[5px] border border-[#d9cec5] bg-white p-0.5"
+                          />
+                          <span className="font-mono text-[10px] uppercase text-[#8a7c73]">{value}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

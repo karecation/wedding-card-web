@@ -112,7 +112,7 @@ function MultilineText({ value, className, style }: { value: string; className?:
   return (
     <>
       {value.split("\n").filter(Boolean).map((line, index) => (
-        <p key={`${line}-${index}`} className={className} style={style}>
+        <p key={`${line}-${index}`} className={`intro-safe-text ${className ?? ""}`} style={style}>
           {line}
         </p>
       ))}
@@ -224,12 +224,12 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
   );
   const imageSlot = renderImageSlot();
 
-  const eventLines = (className = "text-[13px] leading-6", color = introColor.event) => (
+  const eventLines = (className = "text-[clamp(12px,3vw,16px)] leading-6", color = introColor.event) => (
     <MultilineText value={introText.eventLine} className={className} style={{ color }} />
   );
 
   const namesLine = (
-    <span style={{ color: introColor.names }}>
+    <span className="intro-safe-text inline-block max-w-full" style={{ color: introColor.names }}>
       {introText.name1} <span className="mx-2 text-[0.82em] opacity-70">{introText.separator}</span> {introText.name2}
     </span>
   );
@@ -242,10 +242,10 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
     if (template === "names-top") {
       return (
         <section className="px-7 pb-11 pt-12 text-center">
-          <p className="text-[11px] tracking-[0.28em]" style={{ color: introColor.subSlogan }}>{introText.subSlogan}</p>
-          <p className="mt-4 whitespace-nowrap text-[18px] font-light" style={{ color: introColor.names }}>{namesLine}</p>
+          <p className="intro-safe-text text-[clamp(11px,2.5vw,14px)] tracking-[0.28em]" style={{ color: introColor.subSlogan }}>{introText.subSlogan}</p>
+          <p className="intro-safe-text mt-4 text-[clamp(15px,4vw,22px)] font-light" style={{ color: introColor.names }}>{namesLine}</p>
           {renderImageSlot()}
-          <p className="mt-8 font-serif text-[24px] italic leading-none" style={{ color: introColor.slogan }}>{introText.slogan}</p>
+          <p className="intro-safe-text mt-8 font-serif text-[clamp(24px,7vw,40px)] italic leading-none" style={{ color: introColor.slogan }}>{introText.slogan}</p>
           <div className="mt-5">{eventLines()}</div>
         </section>
       );
@@ -254,7 +254,7 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
     if (template === "slash-date") {
       return (
         <section className="px-7 pb-10 pt-10 text-center">
-          <div className="flex items-center justify-center gap-8 text-[17px] font-light" style={{ color: introColor.names }}>
+          <div className="intro-safe-text flex items-center justify-center gap-8 text-[clamp(15px,4vw,22px)] font-light" style={{ color: introColor.names }}>
             <span>{introText.name1}</span>
             <span className="relative grid min-w-[58px] place-items-center text-[24px]" style={{ color: introColor.date }}>
               <span>{introText.month}</span>
@@ -264,7 +264,7 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
             <span>{introText.name2}</span>
           </div>
           {renderImageSlot()}
-          <div className="mt-9">{eventLines("text-[14px] leading-7")}</div>
+          <div className="mt-9">{eventLines("text-[clamp(12px,3vw,16px)] leading-7")}</div>
         </section>
       );
     }
@@ -272,12 +272,12 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
     if (template === "wedding-of") {
       return (
         <section className="px-7 pb-11 pt-12 text-center">
-          <p className="text-[11px] tracking-[0.34em]" style={{ color: introColor.subSlogan }}>{introText.subSlogan || "THE WEDDING OF"}</p>
-          <p className="mt-4 whitespace-nowrap text-[17px] font-light" style={{ color: introColor.names }}>
+          <p className="intro-safe-text text-[clamp(11px,2.5vw,14px)] tracking-[0.34em]" style={{ color: introColor.subSlogan }}>{introText.subSlogan || "THE WEDDING OF"}</p>
+          <p className="intro-safe-text mt-4 text-[clamp(15px,4vw,22px)] font-light" style={{ color: introColor.names }}>
             {introText.name1} <span className="mx-3 text-[12px]">그리고</span> {introText.name2}
           </p>
           {renderImageSlot()}
-          <p className="mt-8 font-serif text-[26px] italic leading-none" style={{ color: introColor.slogan }}>{introText.slogan}</p>
+          <p className="intro-safe-text mt-8 font-serif text-[clamp(24px,7vw,42px)] italic leading-none" style={{ color: introColor.slogan }}>{introText.slogan}</p>
           <div className="mt-5">{eventLines()}</div>
         </section>
       );
@@ -288,7 +288,7 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
         <section className="px-6 pb-10 pt-7 text-center">
           <div className="border border-[var(--invite-border)] bg-[var(--invite-card)] px-3 pb-9 pt-3">
             {renderImageSlot()}
-            <div className="mt-8 flex items-center justify-center gap-8" style={{ color: introColor.names }}>
+            <div className="intro-safe-text mt-8 flex items-center justify-center gap-8 text-[clamp(15px,4vw,22px)]" style={{ color: introColor.names }}>
               <span>{introText.name1}</span>
               <span className="text-[25px] leading-none" style={{ color: introColor.date }}>
                 {introText.month}
@@ -297,7 +297,7 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
               </span>
               <span>{introText.name2}</span>
             </div>
-            <div className="mt-5">{eventLines("text-[13px] leading-6 tracking-[0.08em]")}</div>
+            <div className="mt-5">{eventLines("text-[clamp(12px,3vw,16px)] leading-6 tracking-[0.08em]")}</div>
           </div>
         </section>
       );
@@ -307,7 +307,7 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
       return (
         <section className="px-7 pb-10 pt-8 text-center">
           {renderImageSlot()}
-          <p className="mt-9 font-serif text-[28px] italic leading-none" style={{ color: introColor.slogan }}>{introText.slogan}</p>
+          <p className="intro-safe-text mt-9 font-serif text-[clamp(24px,7vw,44px)] italic leading-none" style={{ color: introColor.slogan }}>{introText.slogan}</p>
           <div className="mt-5">{eventLines()}</div>
         </section>
       );
@@ -318,11 +318,11 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
         <section className="px-0 pb-0 pt-0 text-center">
           {renderImageSlot(
             <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between px-7 py-10 text-white">
-              <p className="intro-script-reveal mx-auto max-w-[310px] font-serif text-[44px] italic leading-[0.95] text-[#fff33f] drop-shadow-[0_2px_8px_rgba(0,0,0,0.12)]" style={{ color: introColor.slogan }}>
+              <p className="intro-safe-text intro-script-reveal mx-auto max-w-[310px] font-serif text-[clamp(30px,10vw,48px)] italic leading-[0.95] text-[#fff33f] drop-shadow-[0_2px_8px_rgba(0,0,0,0.12)]" style={{ color: introColor.slogan }}>
                 {introText.slogan}
               </p>
               <div className="space-y-4">
-                <div className="flex items-center justify-between text-[12px] font-semibold tracking-[0.08em]" style={{ color: introColor.names }}>
+                <div className="intro-safe-text flex items-center justify-between text-[clamp(11px,3vw,14px)] font-semibold tracking-[0.08em]" style={{ color: introColor.names }}>
                   <span>{introText.name1}</span>
                   <span className="rounded-full border border-current px-4 py-1 text-[11px]">{introText.eventLine.split("\n")[0]}</span>
                   <span>{introText.name2}</span>
@@ -342,7 +342,7 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
         </div>
         <div className="mt-1.5 text-[11px] tracking-[0.34em]" style={{ color: introColor.weekday }}>{introText.weekday}</div>
         {renderImageSlot()}
-        <p className="mt-9 whitespace-nowrap text-[17px] font-light tracking-[-0.01em]" style={{ color: introColor.names }}>{namesLine}</p>
+        <p className="intro-safe-text mt-9 text-[clamp(15px,4vw,22px)] font-light tracking-[-0.01em]" style={{ color: introColor.names }}>{namesLine}</p>
         <div className="mt-5">{eventLines()}</div>
       </section>
     );

@@ -271,6 +271,12 @@ select {
   isolation: isolate;
 }
 
+.intro-safe-text {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
 .intro-script-reveal {
   animation: introScriptReveal 980ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
