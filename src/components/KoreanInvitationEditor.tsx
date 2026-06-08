@@ -535,6 +535,7 @@ function IntroCustomControls({
 }) {
   const textFields = introTemplateTextFields[template] ?? [];
   const colorFields = introTemplateColorFields[template] ?? [];
+  const [isCustomOpen, setIsCustomOpen] = useState(true);
   const [isColorOpen, setIsColorOpen] = useState(false);
   const [activeColorField, setActiveColorField] = useState<IntroCustomColorField | null>(null);
   const colorPanelRef = useRef<HTMLDivElement>(null);
@@ -554,6 +555,13 @@ function IntroCustomControls({
     document.addEventListener("pointerdown", closeOnOutsideClick);
     return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
   }, [isColorOpen]);
+
+  useEffect(() => {
+    if (!isCustomOpen) {
+      setIsColorOpen(false);
+      setActiveColorField(null);
+    }
+  }, [isCustomOpen]);
 
   if (!textFields.length && !colorFields.length) return null;
 
@@ -585,96 +593,107 @@ function IntroCustomControls({
 
   return (
     <div className="relative space-y-2 rounded-[7px] border border-[#eadfd6] bg-[#fffdf9]/80 p-2.5">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#5c5048]">
+      <button
+        type="button"
+        onClick={() => setIsCustomOpen((value) => !value)}
+        aria-expanded={isCustomOpen}
+        className="flex w-full items-center justify-between text-left text-[11px] font-medium text-[#5c5048]"
+      >
         <span>문구 및 색상 편집</span>
-        <span className="grid size-4 place-items-center rounded-full border border-[#e1d6cd] text-[10px] text-[#9b8d84]">⌄</span>
-      </div>
-      <div className="space-y-1.5">
-        {dateFields.length > 0 && (
-          <div className="grid grid-cols-4 gap-1.5">
-            {dateFields.map(renderInput)}
+        <span className="grid size-4 place-items-center rounded-full border border-[#e1d6cd] text-[10px] text-[#9b8d84]">
+          {isCustomOpen ? "⌃" : "⌄"}
+        </span>
+      </button>
+      {isCustomOpen && (
+        <div className="space-y-2">
+          <div className="space-y-1.5">
+            {dateFields.length > 0 && (
+              <div className="grid grid-cols-4 gap-1.5">
+                {dateFields.map(renderInput)}
+              </div>
+            )}
+            {nameFields.length > 0 && (
+              <div className="grid grid-cols-3 gap-1.5">
+                {nameFields.map(renderInput)}
+              </div>
+            )}
+            {hasTextField("eventLine") && renderTextarea("eventLine")}
+            {singleFields.map(renderInput)}
           </div>
-        )}
-        {nameFields.length > 0 && (
-          <div className="grid grid-cols-3 gap-1.5">
-            {nameFields.map(renderInput)}
-          </div>
-        )}
-        {hasTextField("eventLine") && renderTextarea("eventLine")}
-        {singleFields.map(renderInput)}
-      </div>
-      {colorFields.length > 0 && (
-        <div ref={colorPanelRef} className="space-y-1.5">
-          <button
-            type="button"
-            onClick={() => {
-              setIsColorOpen((value) => !value);
-              setActiveColorField(null);
-            }}
-            aria-expanded={isColorOpen}
-            className="flex h-8 w-full items-center justify-between rounded-[6px] border border-[#e5d9cf] bg-white px-2.5 text-[11px] font-medium text-[#6b5c52] hover:border-[#b8896a]"
-          >
-            <span>글색 선택</span>
-            <span className="text-[10px] text-[#9b8d84]">{isColorOpen ? "접기" : "펼치기"}</span>
-          </button>
-          {isColorOpen && (
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {colorFields.map((field) => {
-                const fallback = colorDefaults[field] ?? defaultIntroCustomColors[field];
-                const value = toHexColor(colors[field], fallback);
-                return (
-                  <div key={field} className="relative grid min-w-0 grid-cols-[auto_24px_minmax(0,1fr)] items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onColorReset(field);
-                        setActiveColorField(null);
-                      }}
-                      className="h-8 rounded-[6px] border border-[#e2d7ce] bg-white px-2 text-[11px] text-[#6b5c52] hover:border-[#b8896a]"
-                    >
-                      기본색상
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`${introCustomColorLabels[field]} 색상 선택`}
-                      onClick={() => setActiveColorField((current) => (current === field ? null : field))}
-                      className="size-6 rounded-[5px] border border-[#d9cec5] bg-white p-0.5 shadow-sm"
-                    >
-                      <span className="block h-full w-full rounded-[3px]" style={{ backgroundColor: value }} />
-                    </button>
-                    <span className="truncate text-[11px] leading-4 text-[#8a7c73]">{introCustomColorLabels[field]}</span>
-                    {activeColorField === field && (
-                      <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[214px] rounded-[8px] border border-[#dfd2c9] bg-white p-2 shadow-[0_16px_32px_rgba(43,33,28,0.14)]">
-                        <div className="grid grid-cols-8 gap-1.5">
-                          {introColorSwatches.map((swatch) => (
-                            <button
-                              key={swatch}
-                              type="button"
-                              aria-label={`${swatch} 색상 적용`}
-                              onClick={() => {
-                                onColorChange(field, swatch);
-                                setActiveColorField(null);
-                              }}
-                              className={`size-5 rounded-[4px] border ${value.toLowerCase() === swatch.toLowerCase() ? "border-[#2b211c]" : "border-[#e5d9cf]"}`}
-                              style={{ backgroundColor: swatch }}
-                            />
-                          ))}
-                        </div>
-                        <div className="mt-2 flex items-center gap-2 border-t border-[#f0e8e1] pt-2">
-                          <input
-                            type="color"
-                            value={value}
-                            aria-label={`${introCustomColorLabels[field]} 직접 색상 선택`}
-                            onChange={(event) => onColorChange(field, event.target.value)}
-                            className="h-7 w-9 cursor-pointer rounded-[5px] border border-[#d9cec5] bg-white p-0.5"
-                          />
-                          <span className="font-mono text-[10px] uppercase text-[#8a7c73]">{value}</span>
-                        </div>
+          {colorFields.length > 0 && (
+            <div ref={colorPanelRef} className="space-y-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsColorOpen((value) => !value);
+                  setActiveColorField(null);
+                }}
+                aria-expanded={isColorOpen}
+                className="flex h-8 w-full items-center justify-between rounded-[6px] border border-[#e5d9cf] bg-white px-2.5 text-[11px] font-medium text-[#6b5c52] hover:border-[#b8896a]"
+              >
+                <span>글색 선택</span>
+                <span className="text-[10px] text-[#9b8d84]">{isColorOpen ? "접기" : "펼치기"}</span>
+              </button>
+              {isColorOpen && (
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  {colorFields.map((field) => {
+                    const fallback = colorDefaults[field] ?? defaultIntroCustomColors[field];
+                    const value = toHexColor(colors[field], fallback);
+                    return (
+                      <div key={field} className="relative grid min-w-0 grid-cols-[auto_24px_minmax(0,1fr)] items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onColorReset(field);
+                            setActiveColorField(null);
+                          }}
+                          className="h-8 rounded-[6px] border border-[#e2d7ce] bg-white px-2 text-[11px] text-[#6b5c52] hover:border-[#b8896a]"
+                        >
+                          기본색상
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`${introCustomColorLabels[field]} 색상 선택`}
+                          onClick={() => setActiveColorField((current) => (current === field ? null : field))}
+                          className="size-6 rounded-[5px] border border-[#d9cec5] bg-white p-0.5 shadow-sm"
+                        >
+                          <span className="block h-full w-full rounded-[3px]" style={{ backgroundColor: value }} />
+                        </button>
+                        <span className="truncate text-[11px] leading-4 text-[#8a7c73]">{introCustomColorLabels[field]}</span>
+                        {activeColorField === field && (
+                          <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[214px] rounded-[8px] border border-[#dfd2c9] bg-white p-2 shadow-[0_16px_32px_rgba(43,33,28,0.14)]">
+                            <div className="grid grid-cols-8 gap-1.5">
+                              {introColorSwatches.map((swatch) => (
+                                <button
+                                  key={swatch}
+                                  type="button"
+                                  aria-label={`${swatch} 색상 적용`}
+                                  onClick={() => {
+                                    onColorChange(field, swatch);
+                                    setActiveColorField(null);
+                                  }}
+                                  className={`size-5 rounded-[4px] border ${value.toLowerCase() === swatch.toLowerCase() ? "border-[#2b211c]" : "border-[#e5d9cf]"}`}
+                                  style={{ backgroundColor: swatch }}
+                                />
+                              ))}
+                            </div>
+                            <div className="mt-2 flex items-center gap-2 border-t border-[#f0e8e1] pt-2">
+                              <input
+                                type="color"
+                                value={value}
+                                aria-label={`${introCustomColorLabels[field]} 직접 색상 선택`}
+                                onChange={(event) => onColorChange(field, event.target.value)}
+                                className="h-7 w-9 cursor-pointer rounded-[5px] border border-[#d9cec5] bg-white p-0.5"
+                              />
+                              <span className="font-mono text-[10px] uppercase text-[#8a7c73]">{value}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -701,6 +720,7 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
   const [uploadError, setUploadError] = useState("");
   const [locationSearchMessage, setLocationSearchMessage] = useState("");
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [isAddressComposing, setIsAddressComposing] = useState(false);
   const [locationSearchResults, setLocationSearchResults] = useState<LocationSearchResult[]>([]);
   // 주소 입력 draft — 검색 버튼 클릭 시에만 lat/lng 확정
   const [addressDraft, setAddressDraft] = useState<string | null>(null);
@@ -804,6 +824,7 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
   };
 
   const searchLocationAddress = async () => {
+    if (isSearchingLocation) return;
     const query = (addressDraft ?? getLocationState().address ?? "").trim();
     if (!query) {
       setLocationSearchMessage("주소를 입력 후 [검색]을 눌러주세요.");
@@ -836,6 +857,12 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
     } finally {
       setIsSearchingLocation(false);
     }
+  };
+
+  const submitLocationSearch = (event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    if (isAddressComposing || isSearchingLocation) return;
+    void searchLocationAddress();
   };
   const updateIntroTheme = (themeValue: string) => {
     const layout = resolveIntroLayout(themeValue);
@@ -1249,8 +1276,12 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         <Field label="층과 홀"><Input value={data.location?.hallName ?? data.venueHall} onChange={(event) => updateLocation("hallName", event.target.value)} /></Field>
         <Field label="주소">
           <div className="space-y-1.5">
-            <div className="flex gap-2">
+            <form className="flex gap-2" onSubmit={submitLocationSearch}>
               <Input
+                type="search"
+                name="venueAddressSearch"
+                autoComplete="street-address"
+                enterKeyHint="search"
                 value={addressDraft ?? locationState.address}
                 onChange={(event) => {
                   const val = event.target.value;
@@ -1258,17 +1289,23 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
                   // 주소 텍스트는 항상 즉시 반영 — 단 lat/lng는 updateLocation이 자동 초기화
                   updateLocation("address", val);
                 }}
+                onCompositionStart={() => setIsAddressComposing(true)}
+                onCompositionEnd={() => setIsAddressComposing(false)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                  }
+                }}
                 placeholder="예: 서울 서초구 강남대로107길 6 또는 더리버사이드 호텔"
               />
               <button
-                type="button"
-                onClick={searchLocationAddress}
+                type="submit"
                 disabled={isSearchingLocation}
                 className="h-9 shrink-0 rounded-[4px] border border-[#222] bg-white px-4 text-[13px] font-semibold text-[#111] transition hover:bg-[#f8f3ef] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSearchingLocation ? "검색 중" : "검색"}
               </button>
-            </div>
+            </form>
             <p className="text-[11px] leading-5 text-[#aaa]">
               정확한 검색을 위해 도로명 주소를 권장합니다. 장소명만 입력하면 카카오 장소 검색 결과에서 선택하세요.
             </p>
