@@ -490,7 +490,7 @@ function IntroBackgroundThumbnail({ template }: { template: IntroBackgroundTempl
     return (
       <div className="space-y-2 px-1.5 py-2 text-center">
         <div className="h-[72px] rounded-[2px] bg-[#d9d7d3]" />
-        <div className="font-serif text-[8px] italic leading-none text-[#8e7464]">We're getting married</div>
+        <div className="font-serif text-[8px] italic leading-none text-[#8e7464]">We&apos;re getting married</div>
       </div>
     );
   }
@@ -498,7 +498,7 @@ function IntroBackgroundThumbnail({ template }: { template: IntroBackgroundTempl
   if (template === "yellow-script") {
     return (
       <div className="relative h-full rounded-[5px] bg-[#d9d7d3] text-center">
-        <div className="absolute left-2 right-2 top-4 font-serif text-[8px] italic leading-none text-[#e9df3b]">We're getting<br />married</div>
+        <div className="absolute left-2 right-2 top-4 font-serif text-[8px] italic leading-none text-[#e9df3b]">We&apos;re getting<br />married</div>
         <div className="absolute bottom-3 left-2 right-2 text-[5px] text-white">SHINRANG  2026.06.05  SHINBU</div>
       </div>
     );
@@ -1084,14 +1084,14 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
                 aria-label={name}
                 title={name}
                 onClick={() => update("themeColor", id)}
-                className={`grid size-8 place-items-center rounded-full transition focus:outline-none ${
+                className={`grid size-6 place-items-center rounded-full transition focus:outline-none ${
                   selectedPaletteId === id
                     ? "bg-white ring-1 ring-[#2b211c] ring-offset-2 ring-offset-white shadow-[0_6px_14px_rgba(58,47,42,0.10)]"
                     : "bg-white ring-1 ring-[#e5dbd2] hover:-translate-y-0.5 hover:ring-[#cbbbae]"
                 }`}
               >
                 <span
-                  className="block size-6 overflow-hidden rounded-full border border-white shadow-[inset_0_0_0_1px_rgba(43,33,28,0.08)]"
+                  className="block size-4 overflow-hidden rounded-full border border-white shadow-[inset_0_0_0_1px_rgba(43,33,28,0.08)]"
                   style={{
                     background: `linear-gradient(to bottom, ${PALETTE_DEFS[id].bg} 0 48%, ${PALETTE_DEFS[id].accent} 48% 100%)`,
                   }}

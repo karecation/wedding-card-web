@@ -505,7 +505,7 @@ export async function submitRsvpAction(invitationId: string, form: Record<string
     return { ok: true, source: "supabase" as const };
   } catch (error) {
     console.warn("[submitRsvpAction] failed", { error: error instanceof Error ? error.message : String(error) });
-    return { ok: true, source: "local" as const };
+    return { ok: false, source: "local" as const };
   }
 }
 
@@ -518,6 +518,6 @@ export async function addGuestbookAction(invitationId: string, form: Record<stri
     return { ok: true, source: "supabase" as const };
   } catch (error) {
     console.warn("[addGuestbookAction] failed", { error: error instanceof Error ? error.message : String(error) });
-    return { ok: true, source: "local" as const };
+    return { ok: false, source: "local" as const };
   }
 }
