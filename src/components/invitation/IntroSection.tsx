@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getMainImageSrc } from "@/lib/invitation/getImageSrc";
 import { getIntroImageSlotPreset } from "@/lib/invitation/introLayouts";
 import type { NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
+import type { IntroBackgroundTemplate, IntroCustomColorField, IntroCustomTextField } from "@/types/invitation";
 
 const weekdaysEn = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 const weekdaysKo = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
@@ -16,13 +17,13 @@ function getDate(date: string) {
 }
 
 function frameClass(style: NormalizedInvitation["design"]["frameStyle"], layout: IntroLayout) {
-  if (layout === "start") return "rounded-none";
-  if (layout === "together") return "rounded-[10px]";
-  if (layout === "goodday") return "rounded-[3px] shadow-[0_10px_22px_rgba(88,63,49,0.10)]";
   if (style === "arch") return "rounded-t-full";
   if (style === "ellipse") return "rounded-[50%]";
   if (style === "frame") return "rounded-[6px] border border-[#ded3ca] bg-white p-2 shadow-[0_8px_24px_rgba(70,50,40,0.10)]";
   if (style === "fill") return "rounded-none";
+  if (layout === "start") return "rounded-none";
+  if (layout === "together") return "rounded-[10px]";
+  if (layout === "goodday") return "rounded-[3px] shadow-[0_10px_22px_rgba(88,63,49,0.10)]";
   return layout === "minimal" ? "rounded-[12px]" : "rounded-[4px]";
 }
 
@@ -37,6 +38,84 @@ function DateBlock({ date, compact = false }: { date: Date; compact?: boolean })
         {yy} | {mm} | {dd}
       </div>
       <div className="mt-1.5 text-[11px] tracking-[0.34em] text-[#5e4035]">{weekdaysEn[date.getDay()]}</div>
+    </>
+  );
+}
+
+type IntroTextValues = Record<IntroCustomTextField, string>;
+type IntroColorValues = Record<IntroCustomColorField, string>;
+
+const defaultTextColors: IntroColorValues = {
+  date: "#2B211C",
+  weekday: "#8E7464",
+  names: "#2B211C",
+  event: "#75635B",
+  slogan: "#3A2F2A",
+  subSlogan: "#8E7464",
+};
+
+function defaultColorsForTemplate(invitation: NormalizedInvitation, template: IntroBackgroundTemplate): IntroColorValues {
+  const accent = invitation.design.accentColor || defaultTextColors.weekday;
+  const defaults = {
+    ...defaultTextColors,
+    weekday: accent,
+    slogan: accent,
+    subSlogan: accent,
+  };
+
+  if (template === "yellow-script") {
+    return {
+      ...defaults,
+      names: "#FFFFFF",
+      event: "#FFFFFF",
+      slogan: "#FFF33F",
+      subSlogan: "#FFFFFF",
+    };
+  }
+
+  return defaults;
+}
+
+function customText(invitation: NormalizedInvitation, date: Date, venue: string): IntroTextValues {
+  const source = invitation.intro.customTexts ?? {};
+  const dateLine = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
+  const eventLine = `${dateLine} ${invitation.basic.weddingTime}${venue ? `\n${venue}` : ""}`;
+
+  return {
+    year: source.year ?? String(date.getFullYear()).slice(2),
+    month: source.month ?? String(date.getMonth() + 1).padStart(2, "0"),
+    day: source.day ?? String(date.getDate()).padStart(2, "0"),
+    weekday: source.weekday ?? weekdaysEn[date.getDay()],
+    name1: source.name1 ?? invitation.basic.groomName,
+    separator: source.separator ?? "|",
+    name2: source.name2 ?? invitation.basic.brideName,
+    eventLine: source.eventLine ?? eventLine,
+    slogan: source.slogan ?? invitation.intro.headline,
+    subSlogan: source.subSlogan ?? invitation.intro.subText,
+  };
+}
+
+function customColors(invitation: NormalizedInvitation, template: IntroBackgroundTemplate): IntroColorValues {
+  const source = invitation.intro.customColors ?? {};
+  const defaults = defaultColorsForTemplate(invitation, template);
+  return {
+    date: source.date ?? defaults.date,
+    weekday: source.weekday ?? defaults.weekday,
+    names: source.names ?? defaults.names,
+    event: source.event ?? defaults.event,
+    slogan: source.slogan ?? defaults.slogan,
+    subSlogan: source.subSlogan ?? defaults.subSlogan,
+  };
+}
+
+function MultilineText({ value, className, style }: { value: string; className?: string; style?: React.CSSProperties }) {
+  return (
+    <>
+      {value.split("\n").filter(Boolean).map((line, index) => (
+        <p key={`${line}-${index}`} className={className} style={style}>
+          {line}
+        </p>
+      ))}
     </>
   );
 }
@@ -61,6 +140,7 @@ function IntroImageSlot({
   frameStyle,
   imageUrl,
   showImage,
+  overlay,
   onLoad,
   onError,
 }: {
@@ -68,6 +148,7 @@ function IntroImageSlot({
   frameStyle: NormalizedInvitation["design"]["frameStyle"];
   imageUrl: string;
   showImage: boolean;
+  overlay?: React.ReactNode;
   onLoad: () => void;
   onError: () => void;
 }) {
@@ -92,6 +173,7 @@ function IntroImageSlot({
         ) : (
           <Placeholder label={config.placeholder} />
         )}
+        {overlay}
       </div>
     </div>
   );
@@ -114,6 +196,9 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
   const venue = [invitation.basic.venueName, invitation.basic.venueHall].filter(Boolean).join(" ");
   const names = `${invitation.basic.groomName}  |  ${invitation.basic.brideName}`;
   const imageUrl = getMainImageSrc(invitation);
+  const introText = customText(invitation, date, venue);
+  const backgroundTemplate = invitation.intro.backgroundTemplate;
+  const introColor = customColors(invitation, backgroundTemplate);
   const [imageError, setImageError] = useState(false);
   const showImage = Boolean(imageUrl) && !imageError;
 
@@ -126,27 +211,145 @@ export default function IntroSection({ invitation }: { invitation: NormalizedInv
     setImageError(true);
   };
 
-  const imageSlot = (
+  const renderImageSlot = (overlay?: React.ReactNode) => (
     <IntroImageSlot
       layout={layout}
       frameStyle={invitation.design.frameStyle}
       imageUrl={imageUrl}
       showImage={showImage}
+      overlay={overlay}
       onLoad={handleLoad}
       onError={handleError}
     />
   );
+  const imageSlot = renderImageSlot();
 
-  if (layout === "minimal") {
+  const eventLines = (className = "text-[13px] leading-6", color = introColor.event) => (
+    <MultilineText value={introText.eventLine} className={className} style={{ color }} />
+  );
+
+  const namesLine = (
+    <span style={{ color: introColor.names }}>
+      {introText.name1} <span className="mx-2 text-[0.82em] opacity-70">{introText.separator}</span> {introText.name2}
+    </span>
+  );
+
+  const renderIntroBackgroundTemplate = (template: IntroBackgroundTemplate) => {
+    if (template === "blank-photo") {
+      return <section className="px-0 pb-0 pt-0 text-center">{renderImageSlot()}</section>;
+    }
+
+    if (template === "names-top") {
+      return (
+        <section className="px-7 pb-11 pt-12 text-center">
+          <p className="text-[11px] tracking-[0.28em]" style={{ color: introColor.subSlogan }}>{introText.subSlogan}</p>
+          <p className="mt-4 whitespace-nowrap text-[18px] font-light" style={{ color: introColor.names }}>{namesLine}</p>
+          {renderImageSlot()}
+          <p className="mt-8 font-serif text-[24px] italic leading-none" style={{ color: introColor.slogan }}>{introText.slogan}</p>
+          <div className="mt-5">{eventLines()}</div>
+        </section>
+      );
+    }
+
+    if (template === "slash-date") {
+      return (
+        <section className="px-7 pb-10 pt-10 text-center">
+          <div className="flex items-center justify-center gap-8 text-[17px] font-light" style={{ color: introColor.names }}>
+            <span>{introText.name1}</span>
+            <span className="relative grid min-w-[58px] place-items-center text-[24px]" style={{ color: introColor.date }}>
+              <span>{introText.month}</span>
+              <span className="my-1 block h-9 w-px rotate-45 bg-current" />
+              <span>{introText.day}</span>
+            </span>
+            <span>{introText.name2}</span>
+          </div>
+          {renderImageSlot()}
+          <div className="mt-9">{eventLines("text-[14px] leading-7")}</div>
+        </section>
+      );
+    }
+
+    if (template === "wedding-of") {
+      return (
+        <section className="px-7 pb-11 pt-12 text-center">
+          <p className="text-[11px] tracking-[0.34em]" style={{ color: introColor.subSlogan }}>{introText.subSlogan || "THE WEDDING OF"}</p>
+          <p className="mt-4 whitespace-nowrap text-[17px] font-light" style={{ color: introColor.names }}>
+            {introText.name1} <span className="mx-3 text-[12px]">그리고</span> {introText.name2}
+          </p>
+          {renderImageSlot()}
+          <p className="mt-8 font-serif text-[26px] italic leading-none" style={{ color: introColor.slogan }}>{introText.slogan}</p>
+          <div className="mt-5">{eventLines()}</div>
+        </section>
+      );
+    }
+
+    if (template === "framed-date") {
+      return (
+        <section className="px-6 pb-10 pt-7 text-center">
+          <div className="border border-[var(--invite-border)] bg-[var(--invite-card)] px-3 pb-9 pt-3">
+            {renderImageSlot()}
+            <div className="mt-8 flex items-center justify-center gap-8" style={{ color: introColor.names }}>
+              <span>{introText.name1}</span>
+              <span className="text-[25px] leading-none" style={{ color: introColor.date }}>
+                {introText.month}
+                <span className="mx-3 inline-block h-8 w-px translate-y-2 bg-current" />
+                {introText.day}
+              </span>
+              <span>{introText.name2}</span>
+            </div>
+            <div className="mt-5">{eventLines("text-[13px] leading-6 tracking-[0.08em]")}</div>
+          </div>
+        </section>
+      );
+    }
+
+    if (template === "script-bottom") {
+      return (
+        <section className="px-7 pb-10 pt-8 text-center">
+          {renderImageSlot()}
+          <p className="mt-9 font-serif text-[28px] italic leading-none" style={{ color: introColor.slogan }}>{introText.slogan}</p>
+          <div className="mt-5">{eventLines()}</div>
+        </section>
+      );
+    }
+
+    if (template === "yellow-script") {
+      return (
+        <section className="px-0 pb-0 pt-0 text-center">
+          {renderImageSlot(
+            <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between px-7 py-10 text-white">
+              <p className="intro-script-reveal mx-auto max-w-[310px] font-serif text-[44px] italic leading-[0.95] text-[#fff33f] drop-shadow-[0_2px_8px_rgba(0,0,0,0.12)]" style={{ color: introColor.slogan }}>
+                {introText.slogan}
+              </p>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-[12px] font-semibold tracking-[0.08em]" style={{ color: introColor.names }}>
+                  <span>{introText.name1}</span>
+                  <span className="rounded-full border border-current px-4 py-1 text-[11px]">{introText.eventLine.split("\n")[0]}</span>
+                  <span>{introText.name2}</span>
+                </div>
+                <MultilineText value={introText.subSlogan} className="text-[9px] leading-4 opacity-80" style={{ color: introColor.subSlogan }} />
+              </div>
+            </div>,
+          )}
+        </section>
+      );
+    }
+
     return (
-      <section className="px-9 pb-14 pt-16 text-center">
-        <DateBlock date={date} />
-        {imageSlot}
-        <div className="mx-auto mt-10 h-px w-10 bg-[var(--invite-border)]" />
-        <p className="mt-9 whitespace-nowrap text-[17px] font-light tracking-[0.02em] text-[#251b17]">{names}</p>
-        <WeddingLine date={date} time={invitation.basic.weddingTime} venue={venue} />
+      <section className="px-7 pb-10 pt-11 text-center">
+        <div className="text-[25px] font-light tracking-[0.08em]" style={{ color: introColor.date }}>
+          {introText.year} | {introText.month} | {introText.day}
+        </div>
+        <div className="mt-1.5 text-[11px] tracking-[0.34em]" style={{ color: introColor.weekday }}>{introText.weekday}</div>
+        {renderImageSlot()}
+        <p className="mt-9 whitespace-nowrap text-[17px] font-light tracking-[-0.01em]" style={{ color: introColor.names }}>{namesLine}</p>
+        <div className="mt-5">{eventLines()}</div>
       </section>
     );
+  };
+
+  if (layout === "moment" || layout === "minimal") {
+    return renderIntroBackgroundTemplate(backgroundTemplate);
   }
 
   if (layout === "start") {

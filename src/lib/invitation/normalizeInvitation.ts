@@ -3,13 +3,16 @@ import {
   emptyInvitationData,
   type BankAccountItem,
   type GalleryImage,
+  type IntroBackgroundTemplate,
+  type IntroCustomColors,
+  type IntroCustomTexts,
   type InvitationData,
   type MenuSectionId,
   type MenuOrderItem,
   type TransportItem,
 } from "@/types/invitation";
 import { extractYouTubeVideoId } from "@/lib/youtube";
-import { resolveIntroLayout, type IntroLayoutId } from "@/lib/invitation/introLayouts";
+import { resolveIntroBackgroundTemplate, resolveIntroLayout, type IntroLayoutId } from "@/lib/invitation/introLayouts";
 
 export type NormalizedInvitation = {
   id?: string;
@@ -43,6 +46,9 @@ export type NormalizedInvitation = {
     mainImagePreviewUrl?: string;
     headline: string;
     subText: string;
+    backgroundTemplate: IntroBackgroundTemplate;
+    customTexts: IntroCustomTexts;
+    customColors: IntroCustomColors;
   };
   greeting: {
     label: string;
@@ -195,6 +201,13 @@ function asString(value: unknown, fallback = "") {
   return typeof value === "string" && value.trim() ? value : fallback;
 }
 
+function asStringMap(value: unknown): Record<string, string> {
+  const source = asRecord(value);
+  return Object.fromEntries(
+    Object.entries(source).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  );
+}
+
 function asBoolean(value: unknown, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }
@@ -217,41 +230,91 @@ function normalizeMenuOrder(value: unknown): MenuSectionId[] {
 }
 
 export type PaletteId =
-  | "pure-white"
   | "champagne"
-  | "rose-gold"
-  | "sage";
+  | "dusty-rose"
+  | "mocha"
+  | "sage"
+  | "ink-brown";
 
 export const PALETTE_DEFS: Record<PaletteId, {
   accent: string; accentSoft: string;
   bg: string; surface: string; card: string;
   text: string; muted: string; border: string;
 }> = {
-  "pure-white": { accent: "#BCA882", accentSoft: "#D8CAAF", bg: "#FFFFFF", surface: "#F5F1EA", card: "#FFFFFF", text: "#1A1714", muted: "#857873", border: "#EAE4DC" },
-  "champagne":  { accent: "#A88A5C", accentSoft: "#C8AC86", bg: "#FEFCF6", surface: "#EDE4CF", card: "#FEFEF9", text: "#231A0C", muted: "#7A6848", border: "#DDD0B0" },
-  "rose-gold":  { accent: "#B87888", accentSoft: "#D4A8B4", bg: "#FDF7F8", surface: "#EEE0E4", card: "#FEFCFD", text: "#281820", muted: "#786068", border: "#E2D0D6" },
-  "sage":       { accent: "#6A9070", accentSoft: "#9ABAA0", bg: "#F5F9F4", surface: "#DDE8D6", card: "#FAFDF9", text: "#181E16", muted: "#566255", border: "#C5D8BC" },
+  "champagne": {
+    accent: "#B8896A",
+    accentSoft: "#D9BBA5",
+    bg: "#FFFDF8",
+    surface: "#F7EFE8",
+    card: "#FFFDF9",
+    text: "#2B211C",
+    muted: "#7D6B5F",
+    border: "#E6D2C3",
+  },
+  "dusty-rose": {
+    accent: "#C98F8A",
+    accentSoft: "#E3BBB7",
+    bg: "#FFFAF9",
+    surface: "#FAEFEE",
+    card: "#FFFDFD",
+    text: "#2C2020",
+    muted: "#806664",
+    border: "#E8C9C6",
+  },
+  "mocha": {
+    accent: "#8E7464",
+    accentSoft: "#C6AD9D",
+    bg: "#FCF8F3",
+    surface: "#F3EEE9",
+    card: "#FFFDFC",
+    text: "#27201C",
+    muted: "#6F625A",
+    border: "#D8C8BB",
+  },
+  "sage": {
+    accent: "#8F9A8B",
+    accentSoft: "#BDC8B7",
+    bg: "#FBFDF9",
+    surface: "#F1F4EF",
+    card: "#FEFFFD",
+    text: "#232820",
+    muted: "#646D60",
+    border: "#D5DDD1",
+  },
+  "ink-brown": {
+    accent: "#3A2F2A",
+    accentSoft: "#96877C",
+    bg: "#FFFCF8",
+    surface: "#F8F4EF",
+    card: "#FFFFFF",
+    text: "#211B18",
+    muted: "#625650",
+    border: "#DED3C7",
+  },
 };
 
 /** 구버전 hex/ID → 새 palette ID 하위 호환 */
 const LEGACY_TO_PALETTE: Record<string, PaletteId> = {
-  "ivory-warm": "champagne", "blush-rose": "rose-gold",
-  "sage-green": "sage", "slate-blue": "pure-white",
+  "pure-white": "champagne",
+  "ivory-warm": "champagne", "blush-rose": "dusty-rose",
+  "sage-green": "sage", "slate-blue": "ink-brown",
   "coral-sand": "champagne", "champagne-beige": "champagne",
-  "terracotta-clay": "champagne", "graphite-ivory": "pure-white",
-  "rose-taupe": "rose-gold", "lavender-mist": "rose-gold",
-  "sage-linen": "sage", "dusty-blue": "pure-white",
-  "ivory": "pure-white", "beige": "champagne", "pink": "rose-gold",
+  "terracotta-clay": "champagne", "graphite-ivory": "ink-brown",
+  "rose-taupe": "dusty-rose", "lavender-mist": "dusty-rose",
+  "rose-gold": "dusty-rose",
+  "sage-linen": "sage", "dusty-blue": "ink-brown",
+  "ivory": "champagne", "beige": "champagne", "pink": "dusty-rose",
   "#d9826b": "champagne", "#b69668": "champagne", "#b96f55": "champagne",
-  "#55514c": "pure-white", "#b8896a": "champagne", "#b78f72": "champagne",
+  "#55514c": "ink-brown", "#b8896a": "champagne", "#b78f72": "champagne",
   "#b8956a": "champagne", "#a88a5c": "champagne",
-  "#b9797e": "rose-gold", "#9a82a3": "rose-gold",
-  "#c98f8a": "rose-gold", "#d8a0a6": "rose-gold", "#bc8f96": "rose-gold", "#b87888": "rose-gold",
+  "#b9797e": "dusty-rose", "#9a82a3": "dusty-rose",
+  "#c98f8a": "dusty-rose", "#d8a0a6": "dusty-rose", "#bc8f96": "dusty-rose", "#b87888": "dusty-rose",
+  "#8e7464": "mocha", "#6f5a4f": "mocha",
   "#7f8d70": "sage", "#8f9a8b": "sage", "#7a9e6a": "sage", "#6a9070": "sage",
-  "#718c9a": "pure-white", "#738fa4": "pure-white", "#3a2f2a": "pure-white", "#bca882": "pure-white",
+  "#718c9a": "sage", "#738fa4": "sage", "#3a2f2a": "ink-brown", "#bca882": "champagne",
 };
 
-const DEFAULT_PALETTE: PaletteId = "pure-white";
+const DEFAULT_PALETTE: PaletteId = "champagne";
 
 function normalizeThemeColor(value: string): PaletteId {
   const v = (value ?? "").trim().toLowerCase();
@@ -263,7 +326,7 @@ function normalizeThemeColor(value: string): PaletteId {
     const g = parseInt(v.slice(3, 5), 16);
     const b = parseInt(v.slice(5, 7), 16);
     if (g > r && g > b) return "sage";
-    if (r > g + 8) return "rose-gold";
+    if (r > g + 8) return "dusty-rose";
     if (r > g && g > b) return "champagne";
   }
   return DEFAULT_PALETTE;
@@ -480,6 +543,9 @@ export function normalizeInvitation(raw: unknown): NormalizedInvitation {
       mainImagePreviewUrl: asString(merged.coverImage) || asString(merged.introImage) || asString(row.main_image_url),
       headline: asString(merged.introHeadline, "We're getting married"),
       subText: asString(merged.introSubText, "Save The Date"),
+      backgroundTemplate: resolveIntroBackgroundTemplate(asString(merged.introBackgroundTemplate)),
+      customTexts: asStringMap(merged.introCustomTexts) as IntroCustomTexts,
+      customColors: asStringMap(merged.introCustomColors) as IntroCustomColors,
     },
     greeting: {
       label: "INVITATION",

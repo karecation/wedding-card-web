@@ -52,42 +52,90 @@ const SCRIPT_ID = "kakao-maps-sdk";
 let kakaoMapsPromise: Promise<void> | null = null;
 
 export function getKakaoMapAppKey() {
-  return process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY ?? process.env.NEXT_PUBLIC_KAKAO_MAP_KEY ?? "";
+  return (
+    process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY ??
+    process.env.NEXT_PUBLIC_KAKAO_MAP_KEY ??
+    process.env.NEXT_PUBLIC_KAKAO_JS_KEY ??
+    process.env.VITE_KAKAO_JS_KEY ??
+    ""
+  ).trim();
 }
 
 export function loadKakaoMaps(appKey = getKakaoMapAppKey()) {
-  if (typeof window === "undefined") return Promise.reject(new Error("window unavailable"));
-  if (!appKey) return Promise.reject(new Error("missing app key"));
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Kakao Maps requires browser environment"));
+  }
+  if (!appKey) {
+    console.warn("[Kakao Maps loader config missing]", {
+      hasNextMapAppKey: Boolean(process.env.NEXT_PUBLIC_KAKAO_MAP_APP_KEY),
+      hasNextMapKey: Boolean(process.env.NEXT_PUBLIC_KAKAO_MAP_KEY),
+      hasNextJsKey: Boolean(process.env.NEXT_PUBLIC_KAKAO_JS_KEY),
+      hasViteJsKey: Boolean(process.env.VITE_KAKAO_JS_KEY),
+    });
+    return Promise.reject(new Error("Kakao JavaScript key is missing"));
+  }
   if (window.kakao?.maps?.services) return Promise.resolve();
   if (kakaoMapsPromise) return kakaoMapsPromise;
 
   kakaoMapsPromise = new Promise<void>((resolve, reject) => {
-    const existingScript = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
+    const fail = (message: string) => {
+      console.warn("[Kakao Maps loader warning]", {
+        message,
+        hasAppKey: Boolean(appKey),
+        origin: window.location.origin,
+      });
+      reject(new Error(message));
+    };
+
+    let existingScript = document.querySelector(
+      `#${SCRIPT_ID}, script[data-kakao-map-sdk="true"]`,
+    ) as HTMLScriptElement | null;
+    if (existingScript?.dataset.kakaoMapSdkState === "failed") {
+      existingScript.remove();
+      existingScript = null;
+    }
 
     const loadMaps = () => {
       if (!window.kakao?.maps?.load) {
-        reject(new Error("kakao maps sdk unavailable"));
+        fail("Kakao Maps SDK loaded but kakao.maps is unavailable");
         return;
       }
-      window.kakao.maps.load(resolve);
+      window.kakao.maps.load(() => {
+        if (!window.kakao?.maps?.services) {
+          fail("Kakao Maps services library is unavailable");
+          return;
+        }
+        resolve();
+      });
     };
 
     if (existingScript) {
       if (window.kakao?.maps?.load) loadMaps();
       else {
         existingScript.addEventListener("load", loadMaps, { once: true });
-        existingScript.addEventListener("error", () => reject(new Error("kakao maps script failed")), { once: true });
+        existingScript.addEventListener("error", () => fail("Kakao Maps SDK script failed to load"), { once: true });
       }
       return;
     }
 
     const script = document.createElement("script");
     script.id = SCRIPT_ID;
+    script.dataset.kakaoMapSdk = "true";
+    script.dataset.kakaoMapSdkState = "loading";
     script.async = true;
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services`;
-    script.onload = loadMaps;
-    script.onerror = () => reject(new Error("kakao maps script failed"));
+    script.onload = () => {
+      script.dataset.kakaoMapSdkState = "loaded";
+      loadMaps();
+    };
+    script.onerror = () => {
+      script.dataset.kakaoMapSdkState = "failed";
+      fail("Kakao Maps SDK script failed to load");
+    };
     document.head.appendChild(script);
+  }).catch((error) => {
+    kakaoMapsPromise = null;
+    throw error;
   });
 
   return kakaoMapsPromise;

@@ -1,4 +1,4 @@
-import type { IntroTemplate } from "@/types/invitation";
+import type { IntroBackgroundTemplate, IntroTemplate } from "@/types/invitation";
 
 // ─── Intro layout ────────────────────────────────────────────────────────────
 
@@ -18,6 +18,13 @@ export type IntroImageSlotPreset = {
   frameClassName: string;
   editorFrameClassName: string;
   placeholder: string;
+};
+
+export type IntroBackgroundTemplateOption = {
+  id: IntroBackgroundTemplate;
+  label: string;
+  hint: string;
+  editable: boolean;
 };
 
 export const INTRO_LAYOUT_OPTIONS: IntroLayoutOption[] = [
@@ -69,7 +76,7 @@ export const INTRO_THEME_CONFIG: Record<IntroLayoutId, IntroLayoutOption & {
 }> = {
   moment: {
     ...INTRO_LAYOUT_OPTIONS[0],
-    themeColor: "#B8896A",
+    themeColor: "champagne",
     fontFamily: "gowun-dodum",
     fontWeight: "regular",
     thumbnailClassName: "bg-[#fbf8f5]",
@@ -77,7 +84,7 @@ export const INTRO_THEME_CONFIG: Record<IntroLayoutId, IntroLayoutOption & {
   },
   minimal: {
     ...INTRO_LAYOUT_OPTIONS[1],
-    themeColor: "#8E7464",
+    themeColor: "mocha",
     fontFamily: "pretendard",
     fontWeight: "light",
     thumbnailClassName: "bg-[#fffdf9]",
@@ -85,7 +92,7 @@ export const INTRO_THEME_CONFIG: Record<IntroLayoutId, IntroLayoutOption & {
   },
   start: {
     ...INTRO_LAYOUT_OPTIONS[2],
-    themeColor: "#8E7464",
+    themeColor: "ink-brown",
     fontFamily: "gowun-batang",
     fontWeight: "regular",
     thumbnailClassName: "bg-white",
@@ -93,7 +100,7 @@ export const INTRO_THEME_CONFIG: Record<IntroLayoutId, IntroLayoutOption & {
   },
   together: {
     ...INTRO_LAYOUT_OPTIONS[3],
-    themeColor: "#C98F8A",
+    themeColor: "dusty-rose",
     fontFamily: "gowun-batang",
     fontWeight: "regular",
     thumbnailClassName: "bg-[#f7f1ed]",
@@ -101,7 +108,7 @@ export const INTRO_THEME_CONFIG: Record<IntroLayoutId, IntroLayoutOption & {
   },
   goodday: {
     ...INTRO_LAYOUT_OPTIONS[4],
-    themeColor: "#B8896A",
+    themeColor: "champagne",
     fontFamily: "gowun-batang",
     fontWeight: "regular",
     thumbnailClassName: "bg-[radial-gradient(circle_at_1px_1px,rgba(120,92,72,0.10)_1px,transparent_0)] bg-[length:8px_8px]",
@@ -190,6 +197,37 @@ export function asIntroTemplate(layout: IntroLayoutId): IntroTemplate {
   return layout;
 }
 
+export const INTRO_BACKGROUND_TEMPLATES: IntroBackgroundTemplateOption[] = [
+  { id: "date-card", label: "날짜 상단", hint: "날짜와 이름을 정돈한 기본형", editable: true },
+  { id: "names-top", label: "이름 상단", hint: "이름과 문구를 먼저 보여주는 형", editable: true },
+  { id: "slash-date", label: "슬래시 날짜", hint: "이름 사이 날짜를 강조", editable: true },
+  { id: "wedding-of", label: "웨딩 오브", hint: "영문 타이틀과 스크립트 문구", editable: true },
+  { id: "framed-date", label: "액자형", hint: "사진 아래 정보를 카드처럼 배치", editable: true },
+  { id: "script-bottom", label: "스크립트", hint: "사진 아래 필기체 문구 강조", editable: true },
+  { id: "yellow-script", label: "옐로 타이포", hint: "노란 필기체 문구 애니메이션", editable: true },
+  { id: "blank-photo", label: "빈 사진", hint: "사진만 크게 사용하는 업로드형", editable: false },
+];
+
+export function resolveIntroBackgroundTemplate(value?: string | null): IntroBackgroundTemplate {
+  const clean = (value ?? "").trim();
+  const byId = INTRO_BACKGROUND_TEMPLATES.find((template) => template.id === clean);
+  if (byId) return byId.id;
+  if (clean === "basicDate" || clean === "moment" || clean.includes("날짜")) return "date-card";
+  if (clean.includes("이름")) return "names-top";
+  if (clean.includes("slash") || clean.includes("슬래시")) return "slash-date";
+  if (clean.includes("wedding")) return "wedding-of";
+  if (clean.includes("frame") || clean.includes("액자")) return "framed-date";
+  if (clean.includes("script") || clean.includes("스크립트")) return "script-bottom";
+  if (clean.includes("yellow") || clean.includes("옐로")) return "yellow-script";
+  if (clean.includes("blank") || clean.includes("빈")) return "blank-photo";
+  return "date-card";
+}
+
+export function getIntroBackgroundTemplate(value?: string | null) {
+  const id = resolveIntroBackgroundTemplate(value);
+  return INTRO_BACKGROUND_TEMPLATES.find((template) => template.id === id) ?? INTRO_BACKGROUND_TEMPLATES[0];
+}
+
 // ─── Theme presets (독립적으로 관리) ─────────────────────────────────────────
 
 export type ThemeId = "modern" | "minimal" | "natural" | "romantic" | "classic";
@@ -207,7 +245,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "modern",
     label: "모던",
-    themeColor: "#B8896A",
+    themeColor: "champagne",
     fontFamily: "gowun-dodum",
     fontWeight: "regular",
     hint: "따뜻한 로즈톤",
@@ -215,7 +253,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "minimal",
     label: "미니멀",
-    themeColor: "#8E7464",
+    themeColor: "mocha",
     fontFamily: "pretendard",
     fontWeight: "light",
     hint: "깔끔한 베이지",
@@ -223,7 +261,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "natural",
     label: "내추럴",
-    themeColor: "#8F9A8B",
+    themeColor: "sage",
     fontFamily: "gowun-batang",
     fontWeight: "regular",
     hint: "자연스러운 그레이",
@@ -231,7 +269,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "romantic",
     label: "로맨틱",
-    themeColor: "#C98F8A",
+    themeColor: "dusty-rose",
     fontFamily: "nanum-myeongjo",
     fontWeight: "light",
     hint: "부드러운 핑크",
@@ -239,7 +277,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   {
     id: "classic",
     label: "클래식",
-    themeColor: "#3A2F2A",
+    themeColor: "ink-brown",
     fontFamily: "noto-serif",
     fontWeight: "regular",
     hint: "고급스러운 다크",

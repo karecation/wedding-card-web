@@ -9,6 +9,29 @@ export type IntroTemplate =
   | "basicDate"
   | "photoFirst"
   | "saveTheDate";
+export type IntroBackgroundTemplate =
+  | "date-card"
+  | "names-top"
+  | "slash-date"
+  | "wedding-of"
+  | "framed-date"
+  | "script-bottom"
+  | "yellow-script"
+  | "blank-photo";
+export type IntroCustomTextField =
+  | "year"
+  | "month"
+  | "day"
+  | "weekday"
+  | "name1"
+  | "separator"
+  | "name2"
+  | "eventLine"
+  | "slogan"
+  | "subSlogan";
+export type IntroCustomColorField = "date" | "weekday" | "names" | "event" | "slogan" | "subSlogan";
+export type IntroCustomTexts = Partial<Record<IntroCustomTextField, string>>;
+export type IntroCustomColors = Partial<Record<IntroCustomColorField, string>>;
 export type GalleryType = "slide" | "grid" | "masonry" | "슬라이드" | "바둑판" | "그리드" | string;
 export type ImageUploadType =
   | "main"
@@ -189,6 +212,9 @@ export type InvitationData = {
   scrollEffect: boolean;
   introShape: IntroShape;
   introTemplate: IntroTemplate;
+  introBackgroundTemplate: IntroBackgroundTemplate;
+  introCustomTexts: IntroCustomTexts;
+  introCustomColors: IntroCustomColors;
   introHeadline: string;
   introSubText: string;
   introTextColor: string;
@@ -359,13 +385,16 @@ export const emptyInvitationData: InvitationData = {
   defaultMusic: "A",
   audioAutoplay: true,
   templateMood: "moment",
-  themeColor: "pure-white",
+  themeColor: "champagne",
   fontFamily: "gowun-dodum",
   fontWeight: "regular",
   preventZoom: true,
   scrollEffect: true,
   introShape: "basic",
   introTemplate: "moment",
+  introBackgroundTemplate: "date-card",
+  introCustomTexts: {},
+  introCustomColors: {},
   introHeadline: "We're getting married",
   introSubText: "Save The Date",
   introTextColor: "#fff6a8",

@@ -32,7 +32,7 @@ type Props = {
   onGuestbookSubmit?: (entry: { guest_name: string; message: string }) => Promise<void>;
 };
 
-const FALLBACK_PALETTE = PALETTE_DEFS["pure-white"];
+const FALLBACK_PALETTE = PALETTE_DEFS.champagne;
 
 function RevealSection({ children, enabled }: { children: React.ReactNode; enabled: boolean }) {
   const ref = useRef<HTMLDivElement>(null);

@@ -15,6 +15,20 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function toMapFallbackMessage(reason: string | null) {
+  const lower = (reason ?? "").toLowerCase();
+  if (lower.includes("missing address")) return "주소를 입력하면 지도가 표시됩니다.";
+  if (lower.includes("javascript key") || lower.includes("app key") || lower.includes("missing app key")) {
+    return "카카오 지도 JavaScript 키가 설정되지 않았습니다.";
+  }
+  if (lower.includes("script failed") || lower.includes("failed to load")) {
+    return "카카오 지도 SDK를 불러오지 못했습니다. JavaScript 키와 Web 플랫폼 도메인을 확인해주세요.";
+  }
+  if (lower.includes("services")) return "카카오 지도 장소 검색 서비스를 준비하지 못했습니다.";
+  if (lower.includes("geocode")) return "입력한 주소로 지도 위치를 찾지 못했습니다.";
+  return "지도를 불러올 수 없습니다. 카카오 지도 API 키 또는 주소를 확인해주세요.";
+}
+
 export default function KakaoMap({ venueName, address, lat, lng, height = 260 }: KakaoMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const appKey = getKakaoMapAppKey();
@@ -95,6 +109,9 @@ export default function KakaoMap({ venueName, address, lat, lng, height = 260 }:
         });
       })
       .catch((error) => {
+        console.warn("[KakaoMap load failed]", {
+          message: error instanceof Error ? error.message : String(error),
+        });
         showFallback(error instanceof Error ? error.message : "script load failed");
       });
 
@@ -126,7 +143,7 @@ export default function KakaoMap({ venueName, address, lat, lng, height = 260 }:
       )}
       {fallbackReason && (
         <div className="absolute inset-0 grid place-items-center bg-[#f1eee9] px-6 text-center text-[12px] leading-6 text-[#9d8a80]">
-          지도를 불러올 수 없습니다. 카카오 지도 API 키 또는 주소를 확인해주세요.
+          {toMapFallbackMessage(fallbackReason)}
         </div>
       )}
     </div>

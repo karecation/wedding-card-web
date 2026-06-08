@@ -6,9 +6,12 @@ import KakaoMap from "@/components/invitation/KakaoMap";
 import { searchKakaoLocation, type LocationSearchResult } from "@/lib/kakaoMaps";
 import {
   asIntroTemplate,
+  getIntroBackgroundTemplate,
   getIntroImageSlotPreset,
   getIntroThemeConfig,
+  INTRO_BACKGROUND_TEMPLATES,
   INTRO_LAYOUT_OPTIONS,
+  resolveIntroBackgroundTemplate,
   resolveIntroLayout,
 } from "@/lib/invitation/introLayouts";
 import { extractYouTubeVideoId } from "@/lib/youtube";
@@ -19,6 +22,11 @@ import type {
   ContactItem,
   GalleryImage,
   ImageUploadType,
+  IntroBackgroundTemplate,
+  IntroCustomColorField,
+  IntroCustomColors,
+  IntroCustomTextField,
+  IntroCustomTexts,
   InvitationData,
   LocationData,
   MenuSectionId,
@@ -270,28 +278,32 @@ const introFrameOptions = [
 ] as const;
 
 const weddingColorOptions = [
-  { id: "pure-white" as const, name: "화이트" },
-  { id: "champagne"  as const, name: "샴페인" },
-  { id: "rose-gold"  as const, name: "로즈 골드" },
-  { id: "sage"       as const, name: "세이지" },
+  { id: "champagne" as const, name: "Champagne Beige" },
+  { id: "dusty-rose" as const, name: "Dusty Rose" },
+  { id: "mocha" as const, name: "Mocha Taupe" },
+  { id: "sage" as const, name: "Muted Sage" },
+  { id: "ink-brown" as const, name: "Ink Brown" },
 ];
 
 // 저장된 themeColor(구 hex/ID 포함) → 현재 paletteId 로 정규화
 function getSelectedPaletteId(value: string | null | undefined): string {
   const clean = (value ?? "").trim().toLowerCase();
-  if (!clean) return "pure-white";
+  if (!clean) return "champagne";
   if (weddingColorOptions.some((o) => o.id === clean)) return clean;
   const legacy: Record<string, string> = {
-    "ivory-warm": "champagne", "blush-rose": "rose-gold", "sage-green": "sage", "slate-blue": "pure-white",
-    "coral-sand": "champagne", "champagne-beige": "champagne", "terracotta-clay": "champagne", "graphite-ivory": "pure-white",
-    "rose-taupe": "rose-gold", "lavender-mist": "rose-gold", "sage-linen": "sage", "dusty-blue": "pure-white",
-    "ivory": "pure-white", "beige": "champagne", "pink": "rose-gold",
+    "pure-white": "champagne",
+    "ivory-warm": "champagne", "blush-rose": "dusty-rose", "sage-green": "sage", "slate-blue": "ink-brown",
+    "coral-sand": "champagne", "champagne-beige": "champagne", "terracotta-clay": "champagne", "graphite-ivory": "ink-brown",
+    "rose-taupe": "dusty-rose", "lavender-mist": "dusty-rose", "rose-gold": "dusty-rose",
+    "sage-linen": "sage", "dusty-blue": "sage",
+    "ivory": "champagne", "beige": "champagne", "pink": "dusty-rose",
     "#b8956a": "champagne", "#a88a5c": "champagne",
-    "#bc8f96": "rose-gold", "#b87888": "rose-gold",
+    "#bc8f96": "dusty-rose", "#b87888": "dusty-rose", "#c98f8a": "dusty-rose",
+    "#8e7464": "mocha", "#6f5a4f": "mocha",
     "#7a9e6a": "sage", "#6a9070": "sage",
-    "#738fa4": "pure-white", "#bca882": "pure-white",
+    "#738fa4": "sage", "#3a2f2a": "ink-brown", "#bca882": "champagne",
   };
-  return legacy[clean] ?? "pure-white";
+  return legacy[clean] ?? "champagne";
 }
 
 function normalizeIntroFrameKey(value: string | null | undefined) {
@@ -301,6 +313,286 @@ function normalizeIntroFrameKey(value: string | null | undefined) {
   if (clean === "frame" || clean.includes("액자")) return "frame";
   if (clean === "fill" || clean.includes("채우기")) return "fill";
   return "basic";
+}
+
+function toKakaoSearchUserMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const lower = message.toLowerCase();
+
+  if (lower.includes("javascript key") || lower.includes("app key") || lower.includes("missing")) {
+    return "카카오 지도 JavaScript 키가 설정되지 않았습니다. NEXT_PUBLIC_KAKAO_MAP_APP_KEY 값을 확인해 주세요.";
+  }
+
+  if (lower.includes("script failed") || lower.includes("failed to load")) {
+    return "카카오 지도 SDK를 불러오지 못했습니다. JavaScript 키와 카카오 Developers Web 플랫폼 도메인(http://localhost:3000 또는 배포 도메인)을 확인해 주세요.";
+  }
+
+  if (lower.includes("services")) {
+    return "카카오 지도 장소 검색 서비스를 준비하지 못했습니다. SDK 주소에 libraries=services가 포함되어 있는지 확인해 주세요.";
+  }
+
+  if (message === "ADDRESS_NOT_FOUND" || message === "KEYWORD_NOT_FOUND") {
+    return "검색 결과가 없습니다. 도로명 주소 또는 정확한 장소명으로 다시 검색해 주세요.";
+  }
+
+  return message || "주소 검색에 실패했습니다.";
+}
+
+const introCustomFieldLabels: Record<IntroCustomTextField, string> = {
+  year: "년",
+  month: "월",
+  day: "일",
+  weekday: "요일",
+  name1: "이름 1",
+  separator: "구분",
+  name2: "이름 2",
+  eventLine: "예식일시 및 장소",
+  slogan: "메인 문구",
+  subSlogan: "보조 문구",
+};
+
+const introCustomColorLabels: Record<IntroCustomColorField, string> = {
+  date: "날짜",
+  weekday: "요일",
+  names: "이름",
+  event: "예식 정보",
+  slogan: "메인 문구",
+  subSlogan: "보조 문구",
+};
+
+const introTemplateTextFields: Record<IntroBackgroundTemplate, IntroCustomTextField[]> = {
+  "date-card": ["year", "month", "day", "weekday", "name1", "separator", "name2", "eventLine"],
+  "names-top": ["name1", "separator", "name2", "year", "month", "day", "eventLine", "subSlogan"],
+  "slash-date": ["month", "day", "name1", "name2", "eventLine"],
+  "wedding-of": ["subSlogan", "name1", "separator", "name2", "slogan", "eventLine"],
+  "framed-date": ["month", "day", "name1", "name2", "eventLine"],
+  "script-bottom": ["slogan", "eventLine", "name1", "separator", "name2"],
+  "yellow-script": ["slogan", "name1", "name2", "eventLine", "subSlogan"],
+  "blank-photo": [],
+};
+
+const introTemplateColorFields: Record<IntroBackgroundTemplate, IntroCustomColorField[]> = {
+  "date-card": ["date", "weekday", "names", "event"],
+  "names-top": ["names", "date", "event", "subSlogan"],
+  "slash-date": ["date", "names", "event"],
+  "wedding-of": ["subSlogan", "names", "slogan", "event"],
+  "framed-date": ["date", "names", "event"],
+  "script-bottom": ["slogan", "event", "names"],
+  "yellow-script": ["slogan", "names", "event", "subSlogan"],
+  "blank-photo": [],
+};
+
+const defaultIntroCustomColors: Record<IntroCustomColorField, string> = {
+  date: "#2B211C",
+  weekday: "#8E7464",
+  names: "#2B211C",
+  event: "#75635B",
+  slogan: "#3A2F2A",
+  subSlogan: "#8E7464",
+};
+
+function getIntroCustomColorDefaults(template: IntroBackgroundTemplate, accent = "#8E7464") {
+  const defaults = {
+    ...defaultIntroCustomColors,
+    weekday: accent,
+    slogan: accent,
+    subSlogan: accent,
+  };
+
+  if (template === "yellow-script") {
+    return {
+      ...defaults,
+      names: "#FFFFFF",
+      event: "#FFFFFF",
+      slogan: "#FFF33F",
+      subSlogan: "#FFFFFF",
+    };
+  }
+
+  return defaults;
+}
+
+function toHexColor(value: string | undefined, fallback: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(value ?? "") ? value! : fallback;
+}
+
+function IntroBackgroundThumbnail({ template }: { template: IntroBackgroundTemplate }) {
+  const imageBlock = <div className="mx-auto rounded-[2px] bg-[#d9d7d3]" />;
+
+  if (template === "blank-photo") {
+    return <div className="h-full rounded-[5px] bg-[#d9d7d3]" />;
+  }
+
+  if (template === "names-top") {
+    return (
+      <div className="space-y-1.5 px-1.5 py-2 text-center">
+        <div className="text-[5px] tracking-[0.24em] text-[#8e7464]">THE WEDDING OF</div>
+        <div className="text-[7px] text-[#30231c]">최신랑 그리고 이신부</div>
+        <div className="h-[58px] rounded-[2px] bg-[#d9d7d3]" />
+        <div className="font-serif text-[7px] italic text-[#8e7464]">We are getting Married</div>
+      </div>
+    );
+  }
+
+  if (template === "slash-date") {
+    return (
+      <div className="space-y-2 px-1.5 py-3 text-center">
+        <div className="flex items-center justify-between text-[6px] text-[#30231c]">
+          <span>최신랑</span>
+          <span className="text-[9px]">06/05</span>
+          <span>이신부</span>
+        </div>
+        <div className="h-[72px] rounded-[2px] bg-[#d9d7d3]" />
+      </div>
+    );
+  }
+
+  if (template === "wedding-of") {
+    return (
+      <div className="space-y-2 px-1.5 py-2 text-center">
+        <div className="text-[5px] tracking-[0.2em] text-[#8e7464]">THE WEDDING OF</div>
+        <div className="text-[6px] text-[#30231c]">최신랑 & 이신부</div>
+        <div className="h-[66px] rounded-[2px] bg-[#d9d7d3]" />
+      </div>
+    );
+  }
+
+  if (template === "framed-date") {
+    return (
+      <div className="m-1 h-[calc(100%-8px)] border border-[#ded3c7] bg-white px-1 py-1.5 text-center">
+        <div className="h-[64px] bg-[#d9d7d3]" />
+        <div className="mt-1 text-[7px] text-[#30231c]">02 / 04</div>
+        <div className="text-[4px] text-[#8e7464]">최신랑  신부</div>
+      </div>
+    );
+  }
+
+  if (template === "script-bottom") {
+    return (
+      <div className="space-y-2 px-1.5 py-2 text-center">
+        <div className="h-[72px] rounded-[2px] bg-[#d9d7d3]" />
+        <div className="font-serif text-[8px] italic leading-none text-[#8e7464]">We're getting married</div>
+      </div>
+    );
+  }
+
+  if (template === "yellow-script") {
+    return (
+      <div className="relative h-full rounded-[5px] bg-[#d9d7d3] text-center">
+        <div className="absolute left-2 right-2 top-4 font-serif text-[8px] italic leading-none text-[#e9df3b]">We're getting<br />married</div>
+        <div className="absolute bottom-3 left-2 right-2 text-[5px] text-white">SHINRANG  2026.06.05  SHINBU</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5 px-1.5 py-2 text-center">
+      <div className="text-[5px] tracking-[0.2em] text-[#30231c]">23 | 02 | 04</div>
+      <div className="text-[4px] tracking-[0.2em] text-[#8e7464]">SATURDAY</div>
+      {imageBlock && <div className="h-[58px] rounded-[2px] bg-[#d9d7d3]" />}
+      <div className="text-[4px] text-[#30231c]">신랑 | 신부</div>
+    </div>
+  );
+}
+
+function IntroCustomControls({
+  template,
+  values,
+  colors,
+  colorDefaults,
+  defaults,
+  onTextChange,
+  onColorChange,
+  onColorReset,
+}: {
+  template: IntroBackgroundTemplate;
+  values: IntroCustomTexts;
+  colors: IntroCustomColors;
+  colorDefaults: Record<IntroCustomColorField, string>;
+  defaults: IntroCustomTexts;
+  onTextChange: (field: IntroCustomTextField, value: string) => void;
+  onColorChange: (field: IntroCustomColorField, value: string) => void;
+  onColorReset: (field: IntroCustomColorField) => void;
+}) {
+  const textFields = introTemplateTextFields[template] ?? [];
+  const colorFields = introTemplateColorFields[template] ?? [];
+  const [isColorOpen, setIsColorOpen] = useState(false);
+  if (!textFields.length && !colorFields.length) return null;
+
+  return (
+    <div className="space-y-2 rounded-[7px] border border-[#eadfd6] bg-[#fffdf9]/80 p-2.5">
+      <div className="flex items-center gap-1.5 text-[12px] font-medium text-[#5c5048]">
+        <span>문구 및 색상 편집</span>
+        <span className="grid size-4 place-items-center rounded-full border border-[#e1d6cd] text-[10px] text-[#9b8d84]">⌄</span>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        {textFields.map((field) => {
+          const value = values[field] ?? defaults[field] ?? "";
+          const isWide = field === "eventLine" || field === "slogan" || field === "subSlogan";
+          return (
+            <div key={field} className={isWide ? "col-span-2" : ""}>
+              {field === "eventLine" ? (
+                <Textarea
+                  rows={2}
+                  value={value}
+                  onChange={(event) => onTextChange(field, event.target.value)}
+                  placeholder={introCustomFieldLabels[field]}
+                  className="min-h-[68px] rounded-[7px]"
+                />
+              ) : (
+                <Input
+                  value={value}
+                  onChange={(event) => onTextChange(field, event.target.value)}
+                  placeholder={introCustomFieldLabels[field]}
+                  className="h-10 rounded-[7px]"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {colorFields.length > 0 && (
+        <div className="space-y-1.5">
+          <button
+            type="button"
+            onClick={() => setIsColorOpen((value) => !value)}
+            aria-expanded={isColorOpen}
+            className="flex h-8 w-full items-center justify-between rounded-[7px] border border-[#e5d9cf] bg-white px-2.5 text-[11px] font-medium text-[#6b5c52] hover:border-[#b8896a]"
+          >
+            <span>글색 선택</span>
+            <span className="text-[10px] text-[#9b8d84]">{isColorOpen ? "접기" : "펼치기"}</span>
+          </button>
+          {isColorOpen && (
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {colorFields.map((field) => {
+                const fallback = colorDefaults[field] ?? defaultIntroCustomColors[field];
+                const value = toHexColor(colors[field], fallback);
+                return (
+                  <div key={field} className="grid min-w-0 grid-cols-[auto_28px_minmax(0,1fr)] items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onColorReset(field)}
+                      className="h-7 rounded-[6px] border border-[#e2d7ce] bg-white px-2 text-[10px] text-[#6b5c52] hover:border-[#b8896a]"
+                    >
+                      기본색상
+                    </button>
+                    <input
+                      type="color"
+                      value={value}
+                      aria-label={`${introCustomColorLabels[field]} 색상`}
+                      onChange={(event) => onColorChange(field, event.target.value)}
+                      className="size-7 cursor-pointer rounded-[6px] border border-[#e2d7ce] bg-white p-0.5"
+                    />
+                    <span className="truncate text-[11px] leading-4 text-[#8a7c73]">{introCustomColorLabels[field]}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function orderedGalleryImages(data: InvitationData) {
@@ -333,12 +625,43 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
   const selectedIntroLayout = resolveIntroLayout(data.introTemplate || data.templateMood);
   const selectedIntroSlot = getIntroImageSlotPreset(selectedIntroLayout);
   const selectedIntroTheme = getIntroThemeConfig(selectedIntroLayout);
-  const canCustomizeIntroFrame = selectedIntroLayout === "moment" || selectedIntroLayout === "minimal";
+  const canShowIntroBackgroundOptions = selectedIntroLayout === "moment" || selectedIntroLayout === "minimal";
+  const selectedIntroBackground = resolveIntroBackgroundTemplate(data.introBackgroundTemplate);
+  const selectedIntroBackgroundMeta = getIntroBackgroundTemplate(selectedIntroBackground);
   const selectedIntroFrame = normalizeIntroFrameKey(data.introShape);
   const selectedPaletteId = getSelectedPaletteId(data.themeColor);
+  const selectedPalette = PALETTE_DEFS[selectedPaletteId as keyof typeof PALETTE_DEFS] ?? PALETTE_DEFS.champagne;
+  const parsedIntroDate = new Date(`${data.weddingDate || "2026-05-19"}T00:00:00`);
+  const safeIntroDate = Number.isNaN(parsedIntroDate.getTime()) ? new Date("2026-05-19T00:00:00") : parsedIntroDate;
+  const introWeekdays = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+  const introVenueLine = [data.location?.venueName || data.venueName, data.location?.hallName || data.venueHall].filter(Boolean).join(" ");
+  const introCustomTextDefaults: IntroCustomTexts = {
+    year: String(safeIntroDate.getFullYear()).slice(2),
+    month: String(safeIntroDate.getMonth() + 1).padStart(2, "0"),
+    day: String(safeIntroDate.getDate()).padStart(2, "0"),
+    weekday: introWeekdays[safeIntroDate.getDay()],
+    name1: data.groomName,
+    separator: "|",
+    name2: data.brideName,
+    eventLine: `${data.weddingDate.replaceAll("-", ".")} ${data.weddingTime}${introVenueLine ? `\n${introVenueLine}` : ""}`,
+    slogan: data.introHeadline || "We're getting married",
+    subSlogan: data.introSubText || "Save The Date",
+  };
+  const introCustomColorDefaults = getIntroCustomColorDefaults(selectedIntroBackground, selectedPalette.accent);
 
   const update = <K extends keyof InvitationData>(key: K, value: InvitationData[K]) => onChange({ ...data, [key]: value });
   const patch = (next: Partial<InvitationData>) => onChange({ ...data, ...next });
+  const updateIntroCustomText = (field: IntroCustomTextField, value: string) => {
+    update("introCustomTexts", { ...(data.introCustomTexts ?? {}), [field]: value });
+  };
+  const updateIntroCustomColor = (field: IntroCustomColorField, value: string) => {
+    update("introCustomColors", { ...(data.introCustomColors ?? {}), [field]: value });
+  };
+  const resetIntroCustomColor = (field: IntroCustomColorField) => {
+    const next = { ...(data.introCustomColors ?? {}) };
+    delete next[field];
+    update("introCustomColors", next);
+  };
   const getLocationState = (): LocationData => ({
     title: data.location?.title || data.venueTitle,
     venueName: data.location?.venueName || data.venueName,
@@ -418,7 +741,10 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
         setLocationSearchMessage("아래 결과 중 하나를 선택하세요.");
       }
     } catch (error) {
-      setLocationSearchMessage(error instanceof Error ? error.message : "주소 검색에 실패했습니다.");
+      console.warn("[Location search failed]", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      setLocationSearchMessage(toKakaoSearchUserMessage(error));
     } finally {
       setIsSearchingLocation(false);
     }
@@ -635,7 +961,7 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
           </div>
         </Field>
         <Field label="컬러">
-          <div className="flex gap-3">
+          <div className="flex items-center gap-2.5">
             {weddingColorOptions.map(({ id, name }) => (
               <button
                 key={id}
@@ -643,15 +969,19 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
                 aria-label={name}
                 title={name}
                 onClick={() => update("themeColor", id)}
-                className={`size-8 rounded-full overflow-hidden transition hover:scale-110 focus:outline-none ${
+                className={`grid size-8 place-items-center rounded-full transition focus:outline-none ${
                   selectedPaletteId === id
-                    ? "ring-2 ring-offset-2 ring-offset-white ring-[#2b211c] scale-110 shadow-sm"
-                    : "ring-1 ring-[#e0d6d0] hover:ring-[#b0a8a4]"
+                    ? "bg-white ring-1 ring-[#2b211c] ring-offset-2 ring-offset-white shadow-[0_6px_14px_rgba(58,47,42,0.10)]"
+                    : "bg-white ring-1 ring-[#e5dbd2] hover:-translate-y-0.5 hover:ring-[#cbbbae]"
                 }`}
-                style={{
-                  background: `linear-gradient(to bottom, ${PALETTE_DEFS[id].bg} 50%, ${PALETTE_DEFS[id].accent} 50%)`,
-                }}
-              />
+              >
+                <span
+                  className="block size-6 overflow-hidden rounded-full border border-white shadow-[inset_0_0_0_1px_rgba(43,33,28,0.08)]"
+                  style={{
+                    background: `linear-gradient(to bottom, ${PALETTE_DEFS[id].bg} 0 48%, ${PALETTE_DEFS[id].accent} 48% 100%)`,
+                  }}
+                />
+              </button>
             ))}
           </div>
         </Field>
@@ -680,6 +1010,46 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
       </Section>
 
       <Section title="인트로" {...sectionProps("intro")}>
+        {canShowIntroBackgroundOptions && (
+          <Field label="레이아웃">
+            <div className="space-y-3">
+              <div className="grid max-w-[450px] grid-cols-4 gap-3">
+                {INTRO_BACKGROUND_TEMPLATES.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    title={`${template.label} - ${template.hint}`}
+                    onClick={() => update("introBackgroundTemplate", template.id)}
+                    className={`h-[132px] rounded-[7px] border bg-white p-1 transition hover:-translate-y-0.5 ${
+                      selectedIntroBackground === template.id
+                        ? "border-[#2b211c] shadow-[0_8px_20px_rgba(58,47,42,0.08)]"
+                        : "border-[#eee8e2] hover:border-[#d8c8bb]"
+                    }`}
+                  >
+                    <IntroBackgroundThumbnail template={template.id} />
+                    <span className="sr-only">{template.label}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] leading-5 text-[#9b8d84]">
+                {selectedIntroBackgroundMeta.label} · {selectedIntroBackgroundMeta.hint}
+              </p>
+            </div>
+          </Field>
+        )}
+        <Field label="프레임">
+          <div className="flex flex-wrap gap-2">
+            {introFrameOptions.map((shape) => (
+              <Chip
+                key={shape.key}
+                active={selectedIntroFrame === shape.key}
+                onClick={() => update("introShape", shape.key)}
+              >
+                {shape.label}
+              </Chip>
+            ))}
+          </div>
+        </Field>
         <Field label="대표 사진">
           <UploadBox
             imageUrl={data.coverImage || data.introImage}
@@ -688,27 +1058,27 @@ export default function KoreanInvitationEditor({ data, onChange, onPendingUpload
             className={selectedIntroSlot.editorFrameClassName}
           />
         </Field>
-        {canCustomizeIntroFrame && (
-          <Field label="프레임">
-            <div className="flex flex-wrap gap-2">
-              {introFrameOptions.map((shape) => (
-                <Chip
-                  key={shape.key}
-                  active={selectedIntroFrame === shape.key}
-                  onClick={() => update("introShape", shape.key)}
-                >
-                  {shape.label}
-                </Chip>
-              ))}
+        {canShowIntroBackgroundOptions && selectedIntroBackgroundMeta.editable ? (
+          <Field label="커스텀">
+            <IntroCustomControls
+              template={selectedIntroBackground}
+              values={data.introCustomTexts ?? {}}
+              colors={data.introCustomColors ?? {}}
+              colorDefaults={introCustomColorDefaults}
+              defaults={introCustomTextDefaults}
+              onTextChange={updateIntroCustomText}
+              onColorChange={updateIntroCustomColor}
+              onColorReset={resetIntroCustomColor}
+            />
+          </Field>
+        ) : !canShowIntroBackgroundOptions ? (
+          <Field label="문구">
+            <div className="space-y-2">
+              <Input value={data.introHeadline} onChange={(event) => update("introHeadline", event.target.value)} placeholder="We're getting married" />
+              <Input value={data.introSubText} onChange={(event) => update("introSubText", event.target.value)} placeholder="Save The Date" />
             </div>
           </Field>
-        )}
-        <Field label="문구">
-          <div className="space-y-2">
-            <Input value={data.introHeadline} onChange={(event) => update("introHeadline", event.target.value)} placeholder="We're getting married" />
-            <Input value={data.introSubText} onChange={(event) => update("introSubText", event.target.value)} placeholder="Save The Date" />
-          </div>
-        </Field>
+        ) : null}
       </Section>
 
       <Section title="신랑측 정보" {...sectionProps("groom")}>
