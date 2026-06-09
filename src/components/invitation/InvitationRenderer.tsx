@@ -12,6 +12,7 @@ import RsvpSection from "@/components/invitation/RsvpSection";
 import ShareFooter from "@/components/invitation/ShareFooter";
 import { getPhotoQuoteSrc } from "@/lib/invitation/getImageSrc";
 import { normalizeInvitation, PALETTE_DEFS, type NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
+import { DEFAULT_PUBLIC_THUMBNAIL, pickPublicUrl } from "@/lib/publicUrl";
 import { getYouTubeEmbedUrl } from "@/lib/youtube";
 import type { MenuSectionId } from "@/types/invitation";
 
@@ -211,12 +212,17 @@ export default function InvitationRenderer(props: Props) {
   const visibleSections = invitation.menuOrder
     .map((id) => ({ id, node: renderSection(id, props, invitation) }))
     .filter((item) => item.node);
-  const shareImageUrl =
-    invitation.share.kakaoThumbnailUrl ||
-    invitation.share.urlThumbnailUrl ||
-    invitation.intro.mainImageUrl ||
-    invitation.gallery.images[0]?.url ||
-    "";
+  // Share thumbnail priority (per spec): URL share thumb → Kakao share thumb →
+  // main image → first gallery image → default public asset. `pickPublicUrl`
+  // skips blob:, data:, localhost, and relative URLs so Kakao Picker never
+  // receives an unreachable image that would trigger Internal Server Error.
+  const shareImageUrl = pickPublicUrl(
+    invitation.share.urlThumbnailUrl,
+    invitation.share.kakaoThumbnailUrl,
+    invitation.intro.mainImageUrl,
+    invitation.gallery.images[0]?.url,
+    DEFAULT_PUBLIC_THUMBNAIL,
+  );
   const shareTitle = invitation.share.title || `${invitation.basic.groomName} ♥ ${invitation.basic.brideName}`;
   const shareDescription = invitation.share.description || "소중한 분들을 초대합니다.";
 

@@ -100,7 +100,7 @@ export default function HistoryPage() {
     const hiddenKeys = new Set([...Array.from(getDeletedInvitationIds()), ...Array.from(deletingKeysRef.current)]);
     setItems((current) => filterHiddenItems(current, hiddenKeys));
 
-    const result = await deleteInvitationAction(item.id);
+    const result = await deleteInvitationAction(item.id, getWeddingSessionId());
     if (!result.ok) console.warn("[History delete DB failed]", { id: item.id, slug: item.slug, error: result.error });
   };
 

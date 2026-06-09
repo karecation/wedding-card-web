@@ -14,6 +14,15 @@ export type UploadInvitationImagesOptions = {
 };
 
 type UploadInput = PendingUpload;
+const isDev = process.env.NODE_ENV !== "production";
+
+function debugLog(message: string, payload?: unknown) {
+  if (isDev) console.log(message, payload);
+}
+
+function debugWarn(message: string, payload?: unknown) {
+  if (isDev) console.warn(message, payload);
+}
 
 function countByType(uploads: UploadInput[]) {
   return uploads.reduce<Record<string, number>>((acc, upload) => {
@@ -58,7 +67,7 @@ export async function uploadInvitationImages(
 
   const uploads: UploadInput[] = [...pendingUploads, ...extraGalleryUploads];
 
-  console.log("[Upload gallery input]", {
+  debugLog("[Upload gallery input]", {
     invitationId: invitation.id,
     galleryEnabled: invitation.gallery?.enabled,
     galleryImagesCount: invitation.gallery?.images?.length ?? 0,
@@ -71,10 +80,10 @@ export async function uploadInvitationImages(
     extraGalleryIds: extraGalleryUploads.map((u) => u.id),
   });
 
-  console.log("[Image assets collected]", { total: uploads.length, byType: countByType(uploads) });
+  debugLog("[Image assets collected]", { total: uploads.length, byType: countByType(uploads) });
 
   if (uploads.length === 0) {
-    console.warn("[uploadInvitationImages] no uploads — pendingUploads empty and no gallery items have files", {
+    debugWarn("[uploadInvitationImages] no uploads — pendingUploads empty and no gallery items have files", {
       invitationId: invitation.id,
       galleryItemsCount: galleryItems.length,
       gallerySource: invitation.gallery?.images?.length ? "gallery.images" : "galleryItems",
@@ -100,7 +109,7 @@ export async function uploadInvitationImages(
   const results = await Promise.allSettled(
     uploads.map(async (upload) => {
       const uploadType = normalizeUploadType(upload.type);
-      console.log("[Storage upload start]", {
+      debugLog("[Storage upload start]", {
         rawType: upload.type,
         type: uploadType,
         id: upload.id,
@@ -108,7 +117,7 @@ export async function uploadInvitationImages(
         fileSize: upload.file.size,
       });
       if (uploadType === "audio") {
-        console.log("[Audio upload start]", { id: upload.id, fileType: upload.file.type, fileSize: upload.file.size });
+        debugLog("[Audio upload start]", { id: upload.id, fileType: upload.file.type, fileSize: upload.file.size });
       }
 
       const formData = new FormData();
@@ -118,8 +127,8 @@ export async function uploadInvitationImages(
       formData.append("invitationId", invitation.id);
 
       const result = await uploadInvitationFileAction(formData);
-      console.log("[Storage upload success]", { rawType: upload.type, type: uploadType, publicUrl: result.publicUrl });
-      if (uploadType === "audio") console.log("[Audio upload success]", { url: result.publicUrl });
+      debugLog("[Storage upload success]", { rawType: upload.type, type: uploadType, hasPublicUrl: Boolean(result.publicUrl) });
+      if (uploadType === "audio") debugLog("[Audio upload success]", { hasPublicUrl: Boolean(result.publicUrl) });
       return result;
     }),
   );
@@ -195,7 +204,7 @@ export async function uploadInvitationImages(
     images: updatedInvitation.galleryItems,
   };
 
-  console.log("[uploadInvitationImages] complete", {
+  debugLog("[uploadInvitationImages] complete", {
     invitationId: updatedInvitation.id,
     imageCount: updatedInvitation.galleryItems.length,
     failedCount: failed,

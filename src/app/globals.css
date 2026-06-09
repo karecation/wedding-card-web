@@ -433,3 +433,32 @@ select {
     scroll-behavior: auto !important;
   }
 }
+
+/* Gallery lightbox — rendered into document.body via React Portal so the
+   editor preview pane's overflow/transform ancestors cannot clip it. */
+.gallery-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 13, 12, 0.88);
+  animation: galleryLightboxFadeIn 180ms ease-out both;
+}
+
+.gallery-lightbox__image {
+  display: block;
+  max-width: min(92vw, 1100px);
+  max-height: 86vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes galleryLightboxFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

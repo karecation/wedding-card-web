@@ -3,6 +3,12 @@
 import { useState } from "react";
 
 import { sendKakaoInvitationShare } from "@/lib/kakaoShare";
+import {
+  DEFAULT_PUBLIC_THUMBNAIL,
+  buildPublicInvitationUrl,
+  isPubliclyReachableUrl,
+  pickPublicUrl,
+} from "@/lib/publicUrl";
 
 type ShareFooterProps = {
   title: string;
@@ -11,9 +17,23 @@ type ShareFooterProps = {
   slug?: string;
 };
 
-function getCurrentShareUrl(slug?: string) {
+/**
+ * Best-effort current share URL:
+ *  - Prefers the configured public base URL when available (production).
+ *  - Falls back to `${origin}/invitation/${slug}` when running on the same
+ *    browser that holds the share button — useful for local link copy.
+ *  - Returns "" if nothing usable.
+ */
+function resolveCurrentShareUrl(slug?: string): string {
   if (typeof window === "undefined") return "";
-  if (slug) return `${window.location.origin}/invitation/${encodeURIComponent(slug)}`;
+
+  const fromPublicBase = buildPublicInvitationUrl(slug);
+  if (fromPublicBase) return fromPublicBase;
+
+  if (slug) {
+    const localUrl = `${window.location.origin}/invitation/${encodeURIComponent(slug)}`;
+    return localUrl;
+  }
   return window.location.href;
 }
 
@@ -22,26 +42,52 @@ export default function ShareFooter({ title, description, imageUrl, slug }: Shar
   const [isSharing, setIsSharing] = useState(false);
 
   const clearMessageSoon = () => {
-    window.setTimeout(() => setMessage(""), 2200);
+    window.setTimeout(() => setMessage(""), 2400);
   };
 
   const copy = async () => {
-    const url = getCurrentShareUrl(slug);
+    const url = resolveCurrentShareUrl(slug);
     if (!url) {
       setMessage("공유할 주소를 확인할 수 없습니다.");
       clearMessageSoon();
       return;
     }
 
-    await navigator.clipboard?.writeText(url);
-    setMessage("링크가 복사되었습니다.");
+    try {
+      await navigator.clipboard?.writeText(url);
+      setMessage("링크가 복사되었습니다.");
+    } catch (error) {
+      console.warn("[ShareFooter copy] failed", { error: error instanceof Error ? error.message : String(error) });
+      setMessage("주소 복사에 실패했습니다. 직접 복사해 주세요.");
+    }
     clearMessageSoon();
   };
 
   const shareToKakao = async () => {
-    const webUrl = getCurrentShareUrl(slug);
-    if (!webUrl) {
-      setMessage("공유할 청첩장 주소를 확인할 수 없습니다.");
+    // Resolve a publicly reachable share URL.
+    const candidateWebUrl = resolveCurrentShareUrl(slug);
+
+    // Pick a publicly reachable thumbnail; falls back to the default
+    // public asset so Kakao's preview render never receives blob/localhost.
+    const safeImageUrl = pickPublicUrl(imageUrl, DEFAULT_PUBLIC_THUMBNAIL);
+
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+    if (!candidateWebUrl || !isPubliclyReachableUrl(candidateWebUrl)) {
+      // Local development or unreachable origin — Kakao Picker would 500.
+      // Fall back to copy-link so the dev still gets feedback.
+      console.warn("[KakaoShare blocked] webUrl is not publicly reachable", {
+        origin,
+        candidateWebUrl,
+        hasSafeImage: Boolean(safeImageUrl),
+      });
+      try {
+        if (candidateWebUrl) await navigator.clipboard?.writeText(candidateWebUrl);
+        setMessage("개발 환경에서는 카카오톡 공유 대신 링크가 복사되었습니다.");
+      } catch {
+        setMessage("개발 환경에서는 카카오톡 공유를 사용할 수 없습니다.");
+      }
+      clearMessageSoon();
       return;
     }
 
@@ -52,13 +98,27 @@ export default function ShareFooter({ title, description, imageUrl, slug }: Shar
       await sendKakaoInvitationShare({
         title,
         description,
-        imageUrl,
-        webUrl,
+        imageUrl: safeImageUrl,
+        webUrl: candidateWebUrl,
+      });
+      console.log("[KakaoShare success]", {
+        origin,
+        webUrl: candidateWebUrl,
+        imageUrl: safeImageUrl,
       });
     } catch (error) {
+      const sdkError = error as { code?: unknown; message?: unknown } & Error;
       const reason = error instanceof Error ? error.message : "카카오톡 공유를 사용할 수 없습니다.";
-      console.warn("[KakaoShare failed]", { reason });
+      console.warn("[KakaoShare failed]", {
+        origin,
+        sdkInitialized: typeof window !== "undefined" && Boolean(window.Kakao?.isInitialized?.()),
+        webUrl: candidateWebUrl,
+        imageUrl: safeImageUrl,
+        code: sdkError?.code,
+        message: reason,
+      });
       setMessage(`${reason} 카카오 JavaScript 키와 도메인 설정을 확인해 주세요.`);
+      clearMessageSoon();
     } finally {
       setIsSharing(false);
     }

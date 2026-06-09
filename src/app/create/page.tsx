@@ -15,6 +15,15 @@ import { emptyInvitationData, type InvitationData, type SavedInvitation } from "
 
 const storageKey = "mobile-wedding-invitation";
 const collectionKey = LOCAL_INVITATIONS_STORAGE_KEY;
+const isDev = process.env.NODE_ENV !== "production";
+
+function debugLog(message: string, payload?: unknown) {
+  if (isDev) console.log(message, payload);
+}
+
+function debugWarn(message: string, payload?: unknown) {
+  if (isDev) console.warn(message, payload);
+}
 
 function hasAccountData(data: InvitationData) {
   return data.bankAccounts.some((account) => account.bankName || account.accountNumber || account.accountHolder);
@@ -125,7 +134,7 @@ function getApproxStorageSizeKb(value: unknown): number {
 
 function safeLocalStorageSet(key: string, value: unknown): boolean {
   try {
-    console.log("[LocalStorage save start]", { key, approximateSizeKb: getApproxStorageSizeKb(value) });
+    debugLog("[LocalStorage save start]", { key, approximateSizeKb: getApproxStorageSizeKb(value) });
     window.localStorage.setItem(key, JSON.stringify(value));
     return true;
   } catch (error) {
@@ -137,11 +146,11 @@ function safeLocalStorageSet(key: string, value: unknown): boolean {
         window.localStorage.setItem(key, JSON.stringify(value));
         return true;
       } catch {
-        console.warn("[LocalStorage backup skipped]", { key });
+        debugWarn("[LocalStorage backup skipped]", { key });
         return false;
       }
     }
-    console.warn("[LocalStorage save failed]", { key, error });
+    debugWarn("[LocalStorage save failed]", { key, error });
     return false;
   }
 }
@@ -204,7 +213,7 @@ function cleanupOldInvitationDrafts({ maxDrafts = 3 }: { maxDrafts?: number } = 
     if (keys.length <= maxDrafts) return;
     const removedKeys = keys.slice(0, keys.length - maxDrafts);
     removedKeys.forEach((key) => window.localStorage.removeItem(key));
-    console.log("[Local draft cleanup]", { removedKeys });
+    debugLog("[Local draft cleanup]", { removedKeys });
   } catch {
     // localStorage 접근 불가 시 무시
   }
@@ -227,7 +236,7 @@ function cleanupLocalDrafts({ reason, keepDraftId }: { reason: string; keepDraft
       removedKeys.push(key);
     }
 
-    console.log("[Local draft cleanup]", { reason, removedKeys });
+    debugLog("[Local draft cleanup]", { reason, removedKeys });
   } catch (error) {
     console.warn("[Local draft cleanup failed]", { reason, error });
   }
@@ -247,7 +256,7 @@ function revokeObjectUrls(invitation: InvitationData, uploads: PendingUpload[]) 
     .forEach((url) => urls.add(url));
 
   urls.forEach((url) => URL.revokeObjectURL(url));
-  if (urls.size > 0) console.log("[Create reset]", { reason: "object-url-revoked", count: urls.size });
+  if (urls.size > 0) debugLog("[Create reset]", { reason: "object-url-revoked", count: urls.size });
 }
 
 function saveLocalInvitation(invitation: SavedInvitation) {
@@ -354,7 +363,7 @@ function saveDraft(invitation: SavedInvitation, previewId = invitation.id || inv
     }
   }
 
-  console.log("[Draft envelope saved]", {
+  debugLog("[Draft envelope saved]", {
     draftId,
     slug: envelope.slug,
     invitationId: envelope.invitationId,
@@ -377,21 +386,21 @@ function CreatePageContent() {
   useEffect(() => {
     const loadInvitation = async () => {
       if (draftId) {
-        console.log("[Create init]", { mode: "draft", draftId });
+        debugLog("[Create init]", { mode: "draft", draftId });
         const draft = await loadDraftInvitation(draftId);
         setInvitation(prepareInitialInvitation({ ...emptyInvitationData, ...(draft ?? {}) }, true));
         return;
       }
 
       if (editId) {
-        console.log("[Create init]", { mode: "edit", editId });
+        debugLog("[Create init]", { mode: "edit", editId });
         const loaded = await loadInvitationByIdentifier(editId);
         setInvitation(prepareInitialInvitation({ ...emptyInvitationData, ...(loaded ?? {}) }, true));
         return;
       }
 
-      console.log("[Create init]", { mode: "new" });
-      console.log("[Create reset]", { reason: "new-create" });
+      debugLog("[Create init]", { mode: "new" });
+      debugLog("[Create reset]", { reason: "new-create" });
       cleanupLocalDrafts({ reason: "new-create" });
       setInvitation(prepareInitialInvitation(emptyInvitationData));
     };
@@ -404,7 +413,7 @@ function CreatePageContent() {
   };
 
   const handlePendingUpload = (upload: PendingUpload) => {
-    console.log("[Pending upload queued]", {
+    debugLog("[Pending upload queued]", {
       id: upload.id,
       type: upload.type,
       fileType: upload.file.type,
@@ -417,7 +426,7 @@ function CreatePageContent() {
 
   const handleSave = async () => {
     if (isSaving) return;
-    console.time("[SAVE_INVITATION]");
+    if (isDev) console.time("[SAVE_INVITATION]");
     setIsSaving(true);
     setStatusMessage("저장 중입니다...");
 
@@ -429,7 +438,7 @@ function CreatePageContent() {
 
     if (!isEditingExisting && !canCreateLocalInvitation()) {
       setStatusMessage("한 세션에서는 최대 3개까지만 저장할 수 있습니다. 기존 청첩장을 삭제한 후 다시 저장해주세요.");
-      console.timeEnd("[SAVE_INVITATION]");
+      if (isDev) console.timeEnd("[SAVE_INVITATION]");
       setIsSaving(false);
       return;
     }
@@ -439,7 +448,7 @@ function CreatePageContent() {
         (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
     );
 
-    console.log("[Save start]", {
+    debugLog("[Save start]", {
       slug: savedInvitation.slug,
       id: savedInvitation.id,
       pendingUploads: pendingUploads.length,
@@ -450,7 +459,7 @@ function CreatePageContent() {
       galleryItemsInState: invitation.galleryItems.length,
       galleryWithFile: invitation.galleryItems.filter((i) => i.file).length,
     });
-    console.log("[Supabase env]", {
+    debugLog("[Supabase env]", {
       hasUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
       hasAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
       hasPublishableKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
@@ -462,7 +471,7 @@ function CreatePageContent() {
       );
     }
 
-    console.log("[Before save gallery payload]", {
+    debugLog("[Before save gallery payload]", {
       galleryEnabled: invitation.gallery?.enabled,
       galleryImagesCount: invitation.gallery?.images?.length ?? 0,
       galleryItemsCount: invitation.galleryItems?.length ?? 0,
@@ -477,7 +486,7 @@ function CreatePageContent() {
       })),
     });
 
-    console.log("[Before save image payload]", {
+    debugLog("[Before save image payload]", {
       pendingUploadsCount: pendingUploads.length,
       pendingUploadsTypes: pendingUploads.map((item) => item.type),
       galleryImagesCount: invitation.gallery?.images?.length ?? 0,
@@ -516,20 +525,20 @@ function CreatePageContent() {
       savedInvitation.updatedAt = new Date().toISOString();
       savedInvitation = sanitizeInvitationForLocalStorage(savedInvitation);
 
-      console.log("[Final data image check]", {
+      debugLog("[Final data image check]", {
         hasMainImage: Boolean(savedInvitation.coverImage || savedInvitation.introImage),
         galleryCount: savedInvitation.galleryItems.filter((img) => img.url).length,
         hasPhotoQuote: Boolean(savedInvitation.quoteImage),
         hasShareThumbnail: Boolean(savedInvitation.kakaoThumbnailUrl || savedInvitation.urlThumbnailUrl),
       });
-      console.log("[Image save check]", {
+      debugLog("[Image save check]", {
         introMainImageUrl: savedInvitation.coverImage || savedInvitation.introImage,
         introMainImagePreviewUrl: savedInvitation.coverImage || savedInvitation.introImage,
         galleryCount: savedInvitation.gallery?.images?.length || savedInvitation.galleryItems.length,
         firstGalleryUrl: savedInvitation.gallery?.images?.[0]?.url || savedInvitation.galleryItems[0]?.url,
       });
 
-      console.log("[Sanitized invitation payload]", {
+      debugLog("[Sanitized invitation payload]", {
         id: savedInvitation.id,
         slug: savedInvitation.slug,
         coverImage: savedInvitation.coverImage ? savedInvitation.coverImage.slice(0, 60) + "..." : "(없음)",
@@ -545,11 +554,11 @@ function CreatePageContent() {
         })),
       });
 
-      console.log("[DB save start]", { slug: savedInvitation.slug });
+      debugLog("[DB save start]", { slug: savedInvitation.slug });
       try {
         const result = await saveInvitationAction(savedInvitation);
         savedInvitation = result.invitation;
-        console.log("[DB save success]", { slug: savedInvitation.slug, id: savedInvitation.id, source: result.source });
+        debugLog("[DB save success]", { slug: savedInvitation.slug, id: savedInvitation.id, source: result.source });
         if ("ok" in result && !result.ok) {
           setStatusMessage("임시 저장되었습니다. 배포 공유용으로는 DB 연결이 필요합니다.");
           console.warn("[DB save fallback]", { error: result.error });
@@ -573,29 +582,33 @@ function CreatePageContent() {
       const draftId = saveDraft(savedInvitation, previewId);
       revokeObjectUrls(invitation, pendingUploads);
       cleanupLocalDrafts({ reason: "after-save", keepDraftId: draftId });
-      console.log("[SAVE_INVITATION] saved:", savedInvitation);
-      console.log("[SAVE_INVITATION] navigating to preview:", previewUrl);
-      console.log("[Invitation saved]", { id: savedInvitation.id, slug: savedInvitation.slug });
-      console.log("[Saved invitation data images]", {
+      debugLog("[SAVE_INVITATION] saved summary", {
+        id: savedInvitation.id,
+        slug: savedInvitation.slug,
+        galleryCount: savedInvitation.galleryItems.length,
+      });
+      debugLog("[SAVE_INVITATION] navigating to preview:", previewUrl);
+      debugLog("[Invitation saved]", { id: savedInvitation.id, slug: savedInvitation.slug });
+      debugLog("[Saved invitation data images]", {
         hasMainImageUrl: Boolean(savedInvitation.coverImage || savedInvitation.introImage),
         galleryImageCount: savedInvitation.galleryItems.filter((img) => img.url).length,
         hasPhotoQuoteUrl: Boolean(savedInvitation.quoteImage),
         hasShareUrl: Boolean(savedInvitation.kakaoThumbnailUrl || savedInvitation.urlThumbnailUrl),
       });
-      console.log("[Draft saved for preview]", {
+      debugLog("[Draft saved for preview]", {
         draftId,
         slug: savedInvitation.slug,
         imageCount: savedInvitation.galleryItems.length,
         imagesHavingUrl: savedInvitation.galleryItems.filter((img) => img.url).length,
       });
-      console.log("[Preview route push]", { previewId });
+      debugLog("[Preview route push]", { previewId });
       setStatusMessage("저장되었습니다. 미리보기로 이동합니다.");
       router.push(previewUrl);
     } catch (error) {
       console.error("[Save failed]", error);
       setStatusMessage("저장에 실패했습니다. 다시 시도해 주세요.");
     } finally {
-      console.timeEnd("[SAVE_INVITATION]");
+      if (isDev) console.timeEnd("[SAVE_INVITATION]");
       setIsSaving(false);
     }
   };

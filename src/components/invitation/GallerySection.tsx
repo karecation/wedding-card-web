@@ -1,10 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { getImageSrc } from "@/lib/invitation/getImageSrc";
 import type { NormalizedInvitation } from "@/lib/invitation/normalizeInvitation";
 
 // ─── Lightbox ────────────────────────────────────────────────────────────────
+//
+// Rendered into `document.body` via React portal so that the editor preview
+// pane's `overflow: hidden` / `transform` / `border-radius` ancestors cannot
+// clip the popup. Uses fixed positioning and `z-index: 9999`.
+//
+// - Original aspect ratio preserved (`object-fit: contain`).
+// - Body scroll is locked while open; previous scroll position is restored on
+//   close.
+// - ESC closes; arrow keys navigate; touch swipe navigates on mobile.
 
 function Lightbox({
   images,
@@ -16,70 +26,150 @@ function Lightbox({
   onClose: () => void;
 }) {
   const [current, setCurrent] = useState(startIndex);
+  const [mounted, setMounted] = useState(false);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const goPrev = useCallback(() => {
+    setCurrent((i) => Math.max(0, i - 1));
+  }, []);
+  const goNext = useCallback(() => {
+    setCurrent((i) => Math.min(images.length - 1, i + 1));
+  }, [images.length]);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Keyboard: ESC closes, left/right navigates.
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft") setCurrent((i) => Math.max(0, i - 1));
-      if (e.key === "ArrowRight") setCurrent((i) => Math.min(images.length - 1, i + 1));
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goPrev();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goNext();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [images.length, onClose]);
+  }, [goNext, goPrev, onClose]);
+
+  // Body scroll lock — preserve scroll position then restore on cleanup.
+  useEffect(() => {
+    const { body } = document;
+    const scrollY = window.scrollY;
+    const previousOverflow = body.style.overflow;
+    const previousPosition = body.style.position;
+    const previousTop = body.style.top;
+    const previousWidth = body.style.width;
+
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+
+    return () => {
+      body.style.overflow = previousOverflow;
+      body.style.position = previousPosition;
+      body.style.top = previousTop;
+      body.style.width = previousWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
 
   const item = images[current];
+  if (!mounted || typeof document === "undefined") return null;
 
-  return (
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchStartXRef.current = t.clientX;
+    touchStartYRef.current = t.clientY;
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const startX = touchStartXRef.current;
+    const startY = touchStartYRef.current;
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    if (startX === null || startY === null) return;
+    const endTouch = e.changedTouches[0];
+    if (!endTouch) return;
+    const dx = endTouch.clientX - startX;
+    const dy = endTouch.clientY - startY;
+    // Treat as horizontal swipe only when |dx| > |dy| and large enough.
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+    if (dx < 0) goNext();
+    else goPrev();
+  };
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85"
+      className="gallery-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-label="갤러리 사진"
       onClick={onClose}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
     >
       {/* prev */}
       {current > 0 && (
         <button
           type="button"
           aria-label="이전 사진"
-          onClick={(e) => { e.stopPropagation(); setCurrent((i) => i - 1); }}
-          className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-3 text-white hover:bg-white/40"
+          onClick={(e) => { e.stopPropagation(); goPrev(); }}
+          className="absolute left-3 top-1/2 grid -translate-y-1/2 place-items-center rounded-full bg-white/15 p-3 text-2xl leading-none text-white transition hover:bg-white/30 sm:left-6"
         >
           ‹
         </button>
       )}
-      <div className="max-h-[90dvh] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+
+      <div
+        className="relative flex flex-col items-center justify-center"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={item.src}
           alt={item.caption ?? `갤러리 ${current + 1}`}
-          className="max-h-[85dvh] max-w-[90vw] rounded-[6px] object-contain shadow-2xl"
+          className="gallery-lightbox__image"
         />
         {item.caption && (
-          <p className="mt-2 text-center text-[12px] text-white/80">{item.caption}</p>
+          <p className="mt-3 max-w-[88vw] text-center text-[12px] leading-5 text-white/85">{item.caption}</p>
         )}
-        <p className="mt-1 text-center text-[11px] text-white/50">
+        <p className="mt-2 text-center text-[11px] tracking-[0.18em] text-white/65">
           {current + 1} / {images.length}
         </p>
       </div>
+
       {/* next */}
       {current < images.length - 1 && (
         <button
           type="button"
           aria-label="다음 사진"
-          onClick={(e) => { e.stopPropagation(); setCurrent((i) => i + 1); }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-3 text-white hover:bg-white/40"
+          onClick={(e) => { e.stopPropagation(); goNext(); }}
+          className="absolute right-3 top-1/2 grid -translate-y-1/2 place-items-center rounded-full bg-white/15 p-3 text-2xl leading-none text-white transition hover:bg-white/30 sm:right-6"
         >
           ›
         </button>
       )}
+
       {/* close */}
       <button
         type="button"
         aria-label="닫기"
-        onClick={onClose}
-        className="absolute right-4 top-4 rounded-full bg-white/20 p-2 text-white hover:bg-white/40"
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+        className="absolute right-4 top-4 grid size-9 place-items-center rounded-full bg-white/15 text-lg text-white transition hover:bg-white/30 sm:right-6 sm:top-6"
       >
         ✕
       </button>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

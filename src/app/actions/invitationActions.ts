@@ -7,6 +7,15 @@ import type { UploadResult } from "@/lib/upload";
 import type { InvitationData, SavedInvitation } from "@/types/invitation";
 
 const DB_TIMEOUT_MS = 2500;
+const isDev = process.env.NODE_ENV !== "production";
+
+function debugLog(message: string, payload?: unknown) {
+  if (isDev) console.log(message, payload);
+}
+
+function debugWarn(message: string, payload?: unknown) {
+  if (isDev) console.warn(message, payload);
+}
 
 export type InvitationHistoryItem = {
   id: string;
@@ -164,7 +173,7 @@ function toHistoryItem(row: Record<string, unknown>): InvitationHistoryItem {
 }
 
 export async function listInvitationHistoryAction(sessionId?: string): Promise<InvitationHistoryItem[]> {
-  console.log("[History load start]");
+  debugLog("[History load start]");
   if (dbConfigMissing()) return [];
 
   try {
@@ -179,22 +188,22 @@ export async function listInvitationHistoryAction(sessionId?: string): Promise<I
     );
 
     if (error) {
-      console.warn("[History load failed]", { error: error.message });
+      debugWarn("[History load failed]", { error: error.message });
       return [];
     }
 
     const items = (data ?? [])
       .filter((row) => {
-        if (!sessionId) return true;
+        if (!sessionId) return false;
         const settings = asRecord((row as Record<string, unknown>).settings);
         const savedSessionId = asString(settings.sessionId);
-        return !savedSessionId || savedSessionId === sessionId;
+        return savedSessionId === sessionId;
       })
       .map((row) => toHistoryItem(row as Record<string, unknown>));
-    console.log("[History invitations loaded]", { count: items.length });
+    debugLog("[History invitations loaded]", { count: items.length });
     return items;
   } catch (error) {
-    console.warn("[History load failed]", { error: error instanceof Error ? error.message : String(error) });
+    debugWarn("[History load failed]", { error: error instanceof Error ? error.message : String(error) });
     return [];
   }
 }
@@ -236,7 +245,7 @@ async function syncRelatedTables(invitation: SavedInvitation) {
         "invitation_images.insert",
       );
       if (imgInsertErr) console.error("[syncRelatedTables] invitation_images insert failed", { message: imgInsertErr.message });
-      else console.log("[Invitation image rows insert success]", { count: imageRows.length });
+      else debugLog("[Invitation image rows insert success]", { count: imageRows.length });
     }
 
     await withDbTimeout(supabase.from("invitation_audio").delete().eq("invitation_id", invitation.id), "invitation_audio.delete");
@@ -301,13 +310,13 @@ export async function saveInvitationAction(invitation: SavedInvitation) {
     return { invitation, source: "local" as const, ok: false, error: "DB 환경변수가 설정되지 않았습니다." };
   }
 
-  console.log("[saveInvitationAction] DB 저장 시작", {
+  debugLog("[saveInvitationAction] DB 저장 시작", {
     id: invitation.id,
     slug: invitation.slug,
     coverImage: invitation.coverImage ? (invitation.coverImage.startsWith("https://") ? "https" : invitation.coverImage.startsWith("data:") ? "base64" : "other") : "없음",
     galleryCount: invitation.galleryItems?.length ?? 0,
   });
-  console.log("[DB payload image check]", {
+  debugLog("[DB payload image check]", {
     coverImage: invitation.coverImage || invitation.introImage,
     galleryCount: invitation.galleryItems?.length ?? 0,
     galleryUrlSamples: (invitation.galleryItems ?? []).slice(0, 3).map((image) => image.url || image.previewUrl || ""),
@@ -335,13 +344,25 @@ export async function saveInvitationAction(invitation: SavedInvitation) {
   }
 }
 
-export async function deleteInvitationAction(invitationId: string) {
+export async function deleteInvitationAction(invitationId: string, sessionId?: string) {
   if (dbConfigMissing() || !invitationId) {
     return { ok: false, error: "DB 환경변수가 설정되지 않았습니다." };
   }
 
   try {
     const supabase = createSupabaseAdminClient();
+    if (sessionId) {
+      const { data: ownerRow, error: ownerError } = await withDbTimeout(
+        supabase.from("invitations").select("settings").eq("id", invitationId).maybeSingle(),
+        "delete invitation ownership check",
+      );
+      if (ownerError) return { ok: false, error: ownerError.message };
+      const savedSessionId = asString(asRecord((ownerRow as Record<string, unknown> | null)?.settings).sessionId);
+      if (savedSessionId !== sessionId) {
+        return { ok: false, error: "삭제 권한을 확인할 수 없습니다." };
+      }
+    }
+
     await withDbTimeout(supabase.from("invitation_images").delete().eq("invitation_id", invitationId), "delete images");
     await withDbTimeout(supabase.from("invitation_audio").delete().eq("invitation_id", invitationId), "delete audio");
     await withDbTimeout(supabase.from("bank_accounts").delete().eq("invitation_id", invitationId), "delete bank accounts");
@@ -372,7 +393,7 @@ export async function uploadInvitationFileAction(formData: FormData): Promise<Up
     const bucket = type === "audio" ? "invitation-audio" : "invitation-images";
     const path = getSafeStoragePath({ invitationId, type, imageId: id, mimeType: file.type });
 
-    console.log("[Storage upload start]", { rawType, type, path, fileType: file.type, fileSize: file.size });
+    debugLog("[Storage upload start]", { rawType, type, fileType: file.type, fileSize: file.size });
     const { error } = await withDbTimeout(
       supabase.storage.from(bucket).upload(path, file, {
         cacheControl: "31536000",
@@ -384,7 +405,7 @@ export async function uploadInvitationFileAction(formData: FormData): Promise<Up
 
     if (error) throw new Error(error.message);
     const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-    console.log("[Storage upload success]", { type, url: data.publicUrl });
+    debugLog("[Storage upload success]", { type, hasPublicUrl: Boolean(data.publicUrl) });
     return { id, type, publicUrl: data.publicUrl };
   } catch (error) {
     console.error("[uploadInvitationFileAction] failed", { message: error instanceof Error ? error.message : String(error) });
@@ -465,7 +486,7 @@ export async function createPurchaseSessionAction({
   slug: string;
   naverProductUrl: string;
 }) {
-  console.log("[Purchase session create start]", { invitationId, slug });
+  debugLog("[Purchase session create start]", { invitationId, slug });
   if (dbConfigMissing()) return { id: "", source: "local" as const };
 
   try {
@@ -488,7 +509,7 @@ export async function createPurchaseSessionAction({
     );
 
     if (error) throw new Error(error.message);
-    console.log("[Purchase session create success]", { purchaseSessionId: data.id });
+    debugLog("[Purchase session create success]", { purchaseSessionId: data.id });
     return { id: String(data.id), source: "supabase" as const };
   } catch (error) {
     console.warn("[Purchase session create failed]", { message: error instanceof Error ? error.message : String(error), invitationId, slug });
